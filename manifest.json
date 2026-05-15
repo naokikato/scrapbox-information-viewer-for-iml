@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Scrapbox Information Viewer for IML",
+  "version": "1.0.0",
+  "description": "IML向けScrapbox情報可視化ツール（貢献度・研究日誌カレンダー・ヒートマップ）",
+  "permissions": ["activeTab"],
+  "host_permissions": ["https://scrapbox.io/*"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://scrapbox.io/*/*"],
+      "js": ["content.js"]
+    }
+  ]
+}
