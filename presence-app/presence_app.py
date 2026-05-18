@@ -18,7 +18,6 @@ import pystray
 FIREBASE_URL       = "https://iml-presence-default-rtdb.asia-southeast1.firebasedatabase.app"
 SCRAPBOX_PROJECT   = "IML"
 HEARTBEAT_INTERVAL = 30   # 秒
-PRESENCE_PAGE      = "（PC起動中）"
 APP_NAME           = "IML Presence"
 
 # ---- Firebase キー（content.js と同じロジック） ----
@@ -168,7 +167,6 @@ def push_presence(config, paused=False):
         payload = {
             "name":  config["name"],
             "photo": config.get("photo", ""),
-            "page":  PRESENCE_PAGE,
             "ts":    int(time.time())
         }
         requests.put(url, json=payload, timeout=10)

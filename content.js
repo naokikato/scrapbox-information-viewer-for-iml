@@ -197,7 +197,7 @@ async function pushPresence() {
   fetch(`${FIREBASE_URL}/presence/${presenceKey(me.name)}.json`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: me.name, photo: me.photo, page: pageTitle(), ts: Math.floor(Date.now() / 1000) })
+    body: JSON.stringify({ name: me.name, photo: me.photo, ts: Math.floor(Date.now() / 1000) })
   }).catch(() => {});
 }
 
@@ -576,7 +576,7 @@ function initPresenceTab(pane, shadow, host) {
           const avatar = u.photo
             ? `<img class="u-icon" src="${esc(u.photo)}" alt="${esc(u.name)}">`
             : `<div class="u-initial">${esc((u.name || "?")[0])}</div>`;
-          wrap.innerHTML = `${avatar}<div class="u-tooltip">${esc(u.name)}<br>${esc(u.page)}</div>`;
+          wrap.innerHTML = `${avatar}<div class="u-tooltip">${esc(u.name)}</div>`;
           g.appendChild(wrap);
         }
       }
