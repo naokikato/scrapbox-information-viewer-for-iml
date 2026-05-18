@@ -1,8 +1,8 @@
 @echo off
 REM Windows 用ビルドスクリプト
-REM 事前に: pip install -r requirements.txt
+REM 事前に: python -m pip install -r requirements.txt
 
-pyinstaller ^
+python -m PyInstaller ^
   --onefile ^
   --windowed ^
   --name IMLPresence ^
