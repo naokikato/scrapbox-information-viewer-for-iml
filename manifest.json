@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Scrapbox Information Viewer for IML",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "IML向けScrapbox情報可視化ツール（貢献度・研究日誌カレンダー・ヒートマップ）",
   "permissions": ["activeTab", "storage"],
   "host_permissions": [
