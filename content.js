@@ -241,8 +241,8 @@ function removeExisting() {
 function showReopenButton() {
   const btn = document.createElement("button");
   btn.id = "scrapbox-cv-reopen";
-  btn.textContent = "CV";
-  btn.title = "Contribution Viewer を表示";
+  btn.textContent = "IML";
+  btn.title = "IML Viewer を表示";
   btn.style.cssText = `
     position:fixed;bottom:24px;right:24px;z-index:99999;
     width:36px;height:36px;border-radius:50%;
