@@ -7,6 +7,13 @@ const EXCLUDE_USERS      = ["加藤直樹"];
 const LIMIT = 10;
 // --------------
 
+// ---- Firebase プレゼンス設定 ----
+// Firebase Realtime Database URL（設定するまで機能は無効です）
+// 例: "https://your-project-default-rtdb.firebaseio.com"
+const FIREBASE_URL = "https://iml-presence-default-rtdb.asia-southeast1.firebasedatabase.app";
+const CHAT_PAGE    = "チャット";
+const PRESENCE_TTL = 90; // 秒：この秒数以上更新がなければオフライン扱い
+
 let userDismissed = false;
 
 // ---- URL 判定 ----
@@ -23,6 +30,7 @@ function isHeatmapPage()  {
   const t = pageTitle();
   return isWithinProject() && (HEATMAP_PAGE_TITLES.some(k => t.includes(k)) || t === "研究日誌");
 }
+function isPresencePage() { return isWithinProject() && pageTitle() === CHAT_PAGE; }
 
 // ---- データ取得（貢献度） ----
 function fetchContributions(pathname = location.pathname) {
@@ -134,6 +142,84 @@ function fetchHeatmapData(_pathname) {
     });
 }
 
+// ---- Firebase プレゼンス ----
+let _meUser = null;
+let _heartbeatTimer = null;
+
+async function getMe() {
+  if (_meUser) return _meUser;
+  // chrome.storage.local にキャッシュがあれば即座に使い、バックグラウンドで更新
+  try {
+    const stored = await chrome.storage.local.get("scrapboxMe");
+    if (stored.scrapboxMe?.id) {
+      _meUser = stored.scrapboxMe;
+      fetchAndCacheMe();
+      return _meUser;
+    }
+  } catch { }
+  return fetchAndCacheMe();
+}
+
+async function fetchAndCacheMe() {
+  try {
+    const listPath = `/${AUTO_SHOW_PROJECT}/${encodeURIComponent(STUDENT_LIST_PAGE)}`;
+    const [projRes, pageRes] = await Promise.all([
+      fetch(`https://scrapbox.io/api/projects/${AUTO_SHOW_PROJECT}`, { credentials: "include" }),
+      fetch(`https://scrapbox.io/api/pages${listPath}`, { credentials: "include" })
+    ]);
+    const projData = projRes.ok ? await projRes.json() : null;
+    const pageData = pageRes.ok ? await pageRes.json() : null;
+    const myId = pageData?.user?.id;
+    if (myId && projData) {
+      const members = projData.users || projData.members || [];
+      const me = members.find(u => (u.id || u._id) === myId);
+      const user = {
+        id: myId,
+        name: me?.displayName || me?.name || myId,
+        photo: me?.photo || me?.photoURL || ""
+      };
+      _meUser = user;
+      chrome.storage.local.set({ scrapboxMe: user }).catch(() => {});
+    }
+  } catch { }
+  return _meUser;
+}
+
+async function pushPresence() {
+  if (!FIREBASE_URL || !isWithinProject()) return;
+  const me = await getMe();
+  if (!me) return;
+  fetch(`${FIREBASE_URL}/presence/${me.id}.json`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: me.name, photo: me.photo, page: pageTitle(), ts: Math.floor(Date.now() / 1000) })
+  }).catch(() => {});
+}
+
+function startHeartbeat() {
+  if (_heartbeatTimer) return;
+  pushPresence();
+  _heartbeatTimer = setInterval(pushPresence, 30_000);
+}
+
+window.addEventListener("beforeunload", () => {
+  if (!FIREBASE_URL || !_meUser) return;
+  fetch(`${FIREBASE_URL}/presence/${_meUser.id}.json`, {
+    method: "DELETE", keepalive: true
+  }).catch(() => {});
+});
+
+async function fetchPresence() {
+  const r = await fetch(`${FIREBASE_URL}/presence.json`).catch(() => null);
+  if (!r?.ok) return [];
+  const data = await r.json().catch(() => null);
+  if (!data || typeof data !== "object") return [];
+  const now = Math.floor(Date.now() / 1000);
+  return Object.values(data)
+    .filter(u => u && u.ts && (now - u.ts) < PRESENCE_TTL)
+    .sort((a, b) => (a.name || "").localeCompare(b.name || "", "ja"));
+}
+
 // ---- popup からのメッセージに応答 ----
 chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   if (request.type !== "GET_CONTRIBUTIONS") return;
@@ -169,6 +255,7 @@ function updateUI() {
   if (isHeatmapPage()  && !userDismissed) { showHeatmapPanel();  return; }
   if (isContribPage()  && !userDismissed) { showContribPanel();  return; }
   if (isDiaryPage()    && !userDismissed) { showDiaryPanel();    return; }
+  if (isPresencePage() && !userDismissed) { showPresencePanel(); return; }
   showReopenButton();
 }
 
@@ -475,6 +562,75 @@ function buildHeatmapPanel(studentsData) {
   return host;
 }
 
+// ---- プレゼンスパネル ----
+function showPresencePanel() {
+  removeExisting();
+  const host = createHost("240px");
+  const shadow = host.attachShadow({ mode: "open" });
+  shadow.innerHTML = `
+    <style>
+      ${commonStyle("240px")}
+      #icon-grid{display:flex;flex-wrap:wrap;gap:8px;padding:4px 0;min-height:40px;}
+      .u-wrap{position:relative;cursor:default;}
+      .u-icon{width:36px;height:36px;border-radius:50%;object-fit:cover;
+        border:2px solid #4caf50;display:block;}
+      .u-initial{width:36px;height:36px;border-radius:50%;background:#4a90e2;
+        color:#fff;font-size:14px;font-weight:bold;display:flex;
+        align-items:center;justify-content:center;border:2px solid #4caf50;}
+      .u-tooltip{display:none;position:absolute;bottom:calc(100% + 6px);left:50%;
+        transform:translateX(-50%);background:rgba(0,0,0,.75);color:#fff;
+        font-size:10px;border-radius:4px;padding:4px 7px;white-space:nowrap;
+        pointer-events:none;z-index:1;}
+      .u-wrap:hover .u-tooltip{display:block;}
+      #last-upd{font-size:10px;color:#bbb;text-align:right;margin-top:6px;}
+    </style>
+    <div id="panel">
+      ${headerHtml("オンラインユーザー")}
+      <div id="icon-grid"><div style="font-size:11px;color:#aaa;padding:4px 0;">読み込み中...</div></div>
+      <div id="last-upd"></div>
+    </div>`;
+  shadow.getElementById("close-btn").addEventListener("click", () => onClose(host));
+  document.body.appendChild(host);
+  requestAnimationFrame(() => makeDraggable(host, shadow));
+
+  let timer = null;
+  function refresh() {
+    if (!FIREBASE_URL) {
+      const g = shadow.getElementById("icon-grid");
+      if (g) g.innerHTML = `<div style="font-size:11px;color:#aaa;">FIREBASE_URL が未設定です</div>`;
+      return;
+    }
+    fetchPresence().then(users => {
+      const g = shadow.getElementById("icon-grid");
+      const lu = shadow.getElementById("last-upd");
+      if (!g) { clearInterval(timer); return; }
+      if (users.length === 0) {
+        g.innerHTML = `<div style="font-size:11px;color:#aaa;padding:4px 0;">オンラインユーザーなし</div>`;
+      } else {
+        g.innerHTML = "";
+        for (const u of users) {
+          const initial = (u.name || "?")[0];
+          const wrap = document.createElement("div");
+          wrap.className = "u-wrap";
+          const avatar = u.photo
+            ? `<img class="u-icon" src="${esc(u.photo)}" alt="${esc(u.name)}">`
+            : `<div class="u-initial">${esc(initial)}</div>`;
+          wrap.innerHTML = `${avatar}<div class="u-tooltip">${esc(u.name)}<br>${esc(u.page)}</div>`;
+          g.appendChild(wrap);
+        }
+      }
+      if (lu) lu.textContent = `更新: ${new Date().toLocaleTimeString("ja-JP")}`;
+    });
+  }
+
+  // 自分のプレゼンスを先に書き込んでから読み取る
+  pushPresence().then(() => refresh());
+  timer = setInterval(() => {
+    if (!shadow.getElementById("icon-grid")) { clearInterval(timer); return; }
+    refresh();
+  }, 30_000);
+}
+
 // ---- 色計算 ----
 function dayColor(charCount) {
   if (charCount < 0)   return "rgba(200,200,200,0.2)";
@@ -638,7 +794,9 @@ setInterval(() => {
   userDismissed = false;
   updateUI();
   if (isPersonalDiaryPage()) scrollToToday();
+  if (isWithinProject()) pushPresence();
 }, 300);
 
 updateUI();
 if (isPersonalDiaryPage()) scrollToToday();
+startHeartbeat();
