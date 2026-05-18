@@ -185,11 +185,16 @@ async function fetchAndCacheMe() {
   return _meUser;
 }
 
+// Firebase キー：表示名ベース（ブラウザ拡張と常駐アプリで共通）
+function presenceKey(name) {
+  return encodeURIComponent(name.replace(/[.#$[\]]/g, "_"));
+}
+
 async function pushPresence() {
   if (!FIREBASE_URL || !isWithinProject()) return;
   const me = await getMe();
   if (!me) return;
-  fetch(`${FIREBASE_URL}/presence/${me.id}.json`, {
+  fetch(`${FIREBASE_URL}/presence/${presenceKey(me.name)}.json`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name: me.name, photo: me.photo, page: pageTitle(), ts: Math.floor(Date.now() / 1000) })
@@ -204,7 +209,7 @@ function startHeartbeat() {
 
 window.addEventListener("beforeunload", () => {
   if (!FIREBASE_URL || !_meUser) return;
-  fetch(`${FIREBASE_URL}/presence/${_meUser.id}.json`, {
+  fetch(`${FIREBASE_URL}/presence/${presenceKey(_meUser.name)}.json`, {
     method: "DELETE", keepalive: true
   }).catch(() => {});
 });
