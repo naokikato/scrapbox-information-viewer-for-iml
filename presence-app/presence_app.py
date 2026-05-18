@@ -164,12 +164,15 @@ def push_presence(config, paused=False):
     try:
         key = presence_key(config["name"])
         url = f"{FIREBASE_URL}/presence/{key}.json"
-        payload = {
-            "name":  config["name"],
-            "photo": config.get("photo", ""),
-            "ts":    int(time.time())
-        }
-        requests.put(url, json=payload, timeout=10)
+        photo = config.get("photo", "")
+        if photo:
+            # photo が既知 → PUT で全フィールドを書き込む
+            payload = {"name": config["name"], "photo": photo, "ts": int(time.time())}
+            requests.put(url, json=payload, timeout=10)
+        else:
+            # photo 未取得 → PATCH で name と ts のみ更新（既存 photo を保持）
+            payload = {"name": config["name"], "ts": int(time.time())}
+            requests.patch(url, json=payload, timeout=10)
     except Exception:
         pass
 
