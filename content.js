@@ -753,7 +753,6 @@ let lastUrl = location.href;
 setInterval(() => {
   if (location.href === lastUrl) return;
   lastUrl = location.href;
-  userDismissed = false;
   updateUI();
   if (isPersonalDiaryPage()) scrollToToday();
   if (isWithinProject()) pushPresence();
