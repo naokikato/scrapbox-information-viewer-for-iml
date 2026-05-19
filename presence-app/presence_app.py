@@ -9,7 +9,7 @@ import sys
 import time
 import threading
 import platform
-from datetime import datetime
+from datetime import datetime, timedelta
 import requests
 from PIL import Image, ImageDraw
 import pystray
@@ -244,52 +244,101 @@ def main():
         ensure_schedule(config)  # 既存 config に schedule がなければ追記
 
     paused = [False]          # 手動一時停止フラグ
+    temp_pause_until = [None] # 時間指定停止の終了時刻（datetime or None）
     prev_active = [None]      # 前回ハートビート時のアクティブ状態（None=未確定）
+
+    def is_temp_paused():
+        if temp_pause_until[0] is None:
+            return False
+        if datetime.now() >= temp_pause_until[0]:
+            temp_pause_until[0] = None
+            return False
+        return True
+
+    def remaining_str():
+        """残り時間を「○時間○分」形式で返す"""
+        if temp_pause_until[0] is None:
+            return ""
+        delta = temp_pause_until[0] - datetime.now()
+        total = max(0, int(delta.total_seconds()))
+        h, m = divmod(total // 60, 60)
+        if h > 0:
+            return f"{h}時間{m}分"
+        return f"{m}分"
 
     # バックグラウンドで photo を最新化
     refresh_photo_async(config)
 
+    icon_ref = [None]  # スレッドから icon を参照するための参照渡し用リスト
+
+    def apply_icon_state():
+        """現在の状態に応じてアイコンとタイトルを更新"""
+        icon = icon_ref[0]
+        if icon is None:
+            return
+        if paused[0]:
+            icon.icon  = ICON_PAUSED
+            icon.title = f"{APP_NAME}（一時停止中）"
+        elif is_temp_paused():
+            icon.icon  = ICON_PAUSED
+            icon.title = f"{APP_NAME}（停止中 あと{remaining_str()}）"
+        elif is_active_time(config):
+            icon.icon  = ICON_ONLINE
+            icon.title = APP_NAME
+        else:
+            icon.icon  = ICON_SCHEDULE
+            icon.title = f"{APP_NAME}（スケジュール停止中）"
+
     # ---- ハートビートスレッド ----
     def heartbeat():
         while True:
+            temp = is_temp_paused()
             scheduled = is_active_time(config)
-            if not paused[0]:
-                if scheduled:
-                    push_presence(config)
-                    # スケジュール停止 → オンラインに切り替わった瞬間: アイコンを緑に
-                    if prev_active[0] is False:
-                        icon_ref[0].icon  = ICON_ONLINE
-                        icon_ref[0].title = APP_NAME
-                    prev_active[0] = True
-                else:
-                    # オンライン → スケジュール停止に切り替わった瞬間: DELETE してアイコンを薄グレーに
-                    if prev_active[0] is True:
-                        delete_presence(config)
-                        icon_ref[0].icon  = ICON_SCHEDULE
-                        icon_ref[0].title = f"{APP_NAME}（スケジュール停止中）"
-                    prev_active[0] = False
+            if paused[0] or temp:
+                # 手動停止 or 時間指定停止中
+                if prev_active[0] is True:
+                    delete_presence(config)
+                prev_active[0] = False
+                # 時間指定停止が終わった瞬間にアイコンを更新
+                if not temp and prev_active[0] is False:
+                    apply_icon_state()
+            elif scheduled:
+                push_presence(config)
+                if prev_active[0] is not True:
+                    apply_icon_state()
+                prev_active[0] = True
+            else:
+                if prev_active[0] is True:
+                    delete_presence(config)
+                    apply_icon_state()
+                prev_active[0] = False
+            # 時間指定停止中はタイトルの残り時間を毎ハートビート更新
+            if is_temp_paused():
+                apply_icon_state()
             time.sleep(HEARTBEAT_INTERVAL)
-
-    icon_ref = [None]  # スレッドから icon を参照するための参照渡し用リスト
 
     # ---- トレイメニュー ----
     def on_toggle(icon, item):
         paused[0] = not paused[0]
         if paused[0]:
+            temp_pause_until[0] = None  # 時間指定停止をキャンセル
             delete_presence(config)
-            icon.icon  = ICON_PAUSED
-            icon.title = f"{APP_NAME}（一時停止中）"
-            prev_active[0] = None  # 再開時に状態をリセット
+            prev_active[0] = None
         else:
             if is_active_time(config):
                 push_presence(config)
-                icon.icon  = ICON_ONLINE
-                icon.title = APP_NAME
                 prev_active[0] = True
             else:
-                icon.icon  = ICON_SCHEDULE
-                icon.title = f"{APP_NAME}（スケジュール停止中）"
                 prev_active[0] = False
+        apply_icon_state()
+        icon.update_menu()
+
+    def on_temp_pause(icon, item, minutes):
+        paused[0] = False  # 手動停止は解除
+        temp_pause_until[0] = datetime.now() + timedelta(minutes=minutes)
+        delete_presence(config)
+        prev_active[0] = None
+        apply_icon_state()
         icon.update_menu()
 
     def on_quit(icon, item):
@@ -297,11 +346,18 @@ def main():
         icon.stop()
 
     def pause_label(item):
-        return "再開" if paused[0] else "一時停止"
+        if paused[0]:
+            return "再開"
+        if is_temp_paused():
+            return f"再開（あと{remaining_str()}）"
+        return "一時停止"
 
     menu = pystray.Menu(
         pystray.MenuItem(f"名前: {config['name']}", None, enabled=False),
         pystray.MenuItem(pause_label, on_toggle),
+        pystray.MenuItem("30分停止",  lambda icon, item: on_temp_pause(icon, item, 30)),
+        pystray.MenuItem("1時間停止", lambda icon, item: on_temp_pause(icon, item, 60)),
+        pystray.MenuItem("3時間停止", lambda icon, item: on_temp_pause(icon, item, 180)),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("終了", on_quit),
     )
