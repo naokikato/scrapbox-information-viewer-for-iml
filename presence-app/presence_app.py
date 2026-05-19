@@ -25,8 +25,8 @@ APP_NAME           = "IML Presence"
 # active_hours_start / active_hours_end: 24時間制（end は含まない）
 DEFAULT_SCHEDULE = {
     "active_weekdays":    [0, 1, 2, 3, 4],  # 平日のみ
-    "active_hours_start": 7,                  # 7:00 から
-    "active_hours_end":   19                  # 19:00 まで
+    "active_hours_start": 8.5,               # 8:30 から（8.5 = 8時間30分）
+    "active_hours_end":   18.0               # 18:00 まで
 }
 
 # ---- Firebase キー（content.js と同じロジック） ----
@@ -72,13 +72,13 @@ def is_active_time(config):
     schedule = config.get("schedule", DEFAULT_SCHEDULE)
     now = datetime.now()
     weekday = now.weekday()  # 0=月 〜 6=日
-    hour = now.hour
+    current = now.hour + now.minute / 60  # 小数で表現（例: 8.5 = 8:30）
     active_weekdays = schedule.get("active_weekdays",    DEFAULT_SCHEDULE["active_weekdays"])
     start           = schedule.get("active_hours_start", DEFAULT_SCHEDULE["active_hours_start"])
     end             = schedule.get("active_hours_end",   DEFAULT_SCHEDULE["active_hours_end"])
     if weekday not in active_weekdays:
         return False
-    return start <= hour < end
+    return start <= current < end
 
 # ---- Scrapbox/Firebase からアイコン URL を取得 ----
 def fetch_photo(name):
