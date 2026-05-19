@@ -8,6 +8,7 @@ pyinstaller \
   --windowed \
   --name IMLPresence \
   --osx-bundle-identifier com.iml.presence \
+  --icon icon.icns \
   presence_app.py
 
 # Dock に表示しないよう LSUIElement を Info.plist に追記

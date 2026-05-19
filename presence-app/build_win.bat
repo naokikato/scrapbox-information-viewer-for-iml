@@ -6,6 +6,7 @@ python -m PyInstaller ^
   --onefile ^
   --windowed ^
   --name IMLPresence ^
+  --icon icon.ico ^
   presence_app.py
 
 echo 完了: dist\IMLPresence.exe
