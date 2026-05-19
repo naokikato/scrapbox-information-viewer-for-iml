@@ -21,7 +21,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='IMLPresence',
+    name='IMLPresence_intel',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -41,11 +41,11 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='IMLPresence',
+    name='IMLPresence_intel',
 )
 app = BUNDLE(
     coll,
-    name='IMLPresence.app',
+    name='IMLPresence_intel.app',
     icon='icon.icns',
     bundle_identifier='com.iml.presence',
 )

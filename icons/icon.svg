@@ -1,10 +1,34 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-  <rect width="128" height="128" rx="20" fill="#4a90e2"/>
-  <!-- bar chart -->
-  <rect x="18" y="80" width="20" height="32" rx="3" fill="white" opacity="0.9"/>
-  <rect x="44" y="56" width="20" height="56" rx="3" fill="white" opacity="0.9"/>
-  <rect x="70" y="36" width="20" height="76" rx="3" fill="white" opacity="0.9"/>
-  <rect x="96" y="64" width="20" height="48" rx="3" fill="white" opacity="0.9"/>
-  <!-- person icon -->
-  <circle cx="64" cy="20" r="10" fill="white" opacity="0.5"/>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 30.4.0, SVG Export Plug-In . SVG Version: 9.03 Build 0)  -->
+<svg version="1.1" id="レイヤー_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px"
+	 y="0px" viewBox="0 0 128 128" style="enable-background:new 0 0 128 128;" xml:space="preserve">
+<style type="text/css">
+	.st0{fill:#4A90E2;}
+	.st1{opacity:0.9;fill:#E61E62;enable-background:new    ;}
+	.st2{opacity:0.9;fill:#FFF100;enable-background:new    ;}
+	.st3{opacity:0.9;fill:#58B431;enable-background:new    ;}
+	.st4{opacity:0.9;fill:#F7AD00;enable-background:new    ;}
+	.st5{opacity:0.5;fill:#FFFFFF;enable-background:new    ;}
+	.st6{fill:#004BA0;stroke:#EFEFEF;stroke-miterlimit:10;}
+	.st7{font-family:'UDDigiKyokashoNP-B';}
+	.st8{font-size:50px;}
+</style>
+<font horiz-adv-x="2048">
+<!-- (C) Copyright 2016-2017 TypeBank Co., Ltd. All Rights Reserved. -->
+<!-- Copyright: Copyright 2026 Adobe System Incorporated. All rights reserved. -->
+<font-face font-family="UDDigiKyokashoNP-B" units-per-em="2048" underline-position="-246" underline-thickness="102"/>
+<missing-glyph horiz-adv-x="2048" d="M262,1540l1524,0l0,-1524l-1524,0M356,1446l0,-1336l1336,0l0,1336z"/>
+<glyph unicode="I" horiz-adv-x="967" d="M344,1319l-150,0C172,1319 153,1326 138,1341C117,1361 106,1388 106,1423C106,1464 120,1494 149,1513C162,1522 177,1526 194,1526l577,0C794,1526 813,1519 829,1504C850,1485 860,1457 860,1422C860,1381 846,1351 817,1332C804,1323 789,1319 771,1319l-149,0l0,-1081l149,0C794,238 813,231 829,216C850,197 860,169 860,134C860,93 846,63 817,44C804,35 789,31 771,31l-577,0C172,31 153,38 138,53C117,72 106,100 106,135C106,176 120,206 149,225C162,234 177,238 194,238l150,0z"/>
+<glyph unicode="L" horiz-adv-x="1305" d="M471,1432l0,-1110C471,293 485,279 514,279l655,0C1188,279 1205,275 1220,266C1255,245 1272,208 1272,157C1272,112 1259,78 1233,55C1216,39 1194,31 1169,31l-770,0C257,31 186,103 186,246l0,1186C186,1477 207,1510 249,1531C273,1543 299,1549 327,1549C366,1549 399,1539 426,1520C456,1499 471,1469 471,1432z"/>
+<glyph unicode="M" horiz-adv-x="1974" d="M442,1241l12,-1122C455,99 450,81 440,65C416,27 376,8 320,8C276,8 241,21 215,46C196,65 186,90 186,119l0,1210C186,1398 210,1453 257,1494C299,1530 353,1548 419,1548C537,1548 616,1490 655,1374l332,-983l332,983C1358,1490 1437,1548 1556,1548C1632,1548 1691,1524 1734,1477C1770,1438 1788,1388 1788,1329l0,-1210C1788,90 1779,66 1760,47C1735,21 1700,8 1655,8C1608,8 1572,22 1546,50C1528,69 1519,92 1520,119l12,1122l-367,-1059C1155,154 1142,130 1125,109C1088,65 1043,43 988,43C901,43 841,89 809,182z"/>
+</font>
+
+	<path class="st0" d="M20,0h88c11.05,0,20,8.95,20,20v88c0,11.05-8.95,20-20,20H20c-11.05,0-20-8.95-20-20V20C0,8.95,8.95,0,20,0z"
+	/>
+<path class="st1" d="M21,80h14c1.66,0,3,1.34,3,3v26c0,1.66-1.34,3-3,3H21c-1.66,0-3-1.34-3-3V83C18,81.34,19.34,80,21,80z"/>
+<path class="st2" d="M47,56h14c1.66,0,3,1.34,3,3v50c0,1.66-1.34,3-3,3H47c-1.66,0-3-1.34-3-3V59C44,57.34,45.34,56,47,56z"/>
+<path class="st3" d="M73,36h14c1.66,0,3,1.34,3,3v70c0,1.66-1.34,3-3,3H73c-1.66,0-3-1.34-3-3V39C70,37.34,71.34,36,73,36z"/>
+<path class="st4" d="M99,64h14c1.66,0,3,1.34,3,3v42c0,1.66-1.34,3-3,3H99c-1.66,0-3-1.34-3-3V67C96,65.34,97.34,64,99,64z"/>
+<circle class="st5" cx="64" cy="20" r="10"/>
+<text transform="matrix(1 0 0 1 15 104)" class="st6 st7 st8">IML</text>
 </svg>
