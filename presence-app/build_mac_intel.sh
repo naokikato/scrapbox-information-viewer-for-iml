@@ -2,7 +2,7 @@
 # Intel Mac 用ビルドスクリプト
 # 事前に: pip3 install -r requirements.txt
 
-pyinstaller \
+python3 -m PyInstaller \
   -y \
   --onedir \
   --windowed \
