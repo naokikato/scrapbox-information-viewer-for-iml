@@ -245,7 +245,10 @@ def make_icon_image(fill, text_color, outline=None):
     draw.text((x, y), text, fill=text_color, font=font)
     return img
 
-ICON_ONLINE   = make_icon_image("#ffffff", "#333333", outline="#999999")  # 白丸・暗色文字
+if platform.system() == "Windows":
+    ICON_ONLINE = make_icon_image("#4caf50", "#ffffff")                   # 緑丸・白文字（Windows）
+else:
+    ICON_ONLINE = make_icon_image("#ffffff", "#333333", outline="#999999") # 白丸・暗色文字（Mac）
 ICON_PAUSED   = make_icon_image("#aaaaaa", "#ffffff")                     # グレー丸・白文字
 ICON_SCHEDULE = make_icon_image("#cccccc", "#888888")                     # 薄グレー丸・灰文字
 
