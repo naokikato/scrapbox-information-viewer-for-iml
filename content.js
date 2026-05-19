@@ -754,7 +754,8 @@ function scrollToChatBottom() {
   const timer = setInterval(() => {
     const el = document.querySelector(".related-page-list");
     if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "end" });
+      const rect = el.getBoundingClientRect();
+      window.scrollTo({ top: window.scrollY + rect.top - window.innerHeight, behavior: "smooth" });
       clearInterval(timer);
     } else if (Date.now() - start > 8000) {
       clearInterval(timer);
