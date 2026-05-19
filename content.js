@@ -748,6 +748,20 @@ function scrollToToday() {
   }, 300);
 }
 
+// ---- チャットページの related-page-list 直前へスクロール ----
+function scrollToChatBottom() {
+  const start = Date.now();
+  const timer = setInterval(() => {
+    const el = document.querySelector(".related-page-list");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      clearInterval(timer);
+    } else if (Date.now() - start > 8000) {
+      clearInterval(timer);
+    }
+  }, 300);
+}
+
 // ---- SPA ナビゲーション監視 ----
 let lastUrl = location.href;
 setInterval(() => {
@@ -755,9 +769,11 @@ setInterval(() => {
   lastUrl = location.href;
   updateUI();
   if (isPersonalDiaryPage()) scrollToToday();
+  if (isPresencePage()) scrollToChatBottom();
   if (isWithinProject()) pushPresence();
 }, 300);
 
 updateUI();
 if (isPersonalDiaryPage()) scrollToToday();
+if (isPresencePage()) scrollToChatBottom();
 startHeartbeat();
