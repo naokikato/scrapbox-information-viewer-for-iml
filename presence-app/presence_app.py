@@ -319,17 +319,26 @@ def main():
 
     # ---- トレイメニュー ----
     def on_toggle(icon, item):
-        paused[0] = not paused[0]
-        if paused[0]:
-            temp_pause_until[0] = None  # 時間指定停止をキャンセル
-            delete_presence(config)
-            prev_active[0] = None
-        else:
+        if is_temp_paused():
+            # 時間指定停止中 → キャンセルして即再開
+            temp_pause_until[0] = None
+            paused[0] = False
             if is_active_time(config):
                 push_presence(config)
                 prev_active[0] = True
             else:
                 prev_active[0] = False
+        else:
+            paused[0] = not paused[0]
+            if paused[0]:
+                delete_presence(config)
+                prev_active[0] = None
+            else:
+                if is_active_time(config):
+                    push_presence(config)
+                    prev_active[0] = True
+                else:
+                    prev_active[0] = False
         apply_icon_state()
         icon.update_menu()
 
