@@ -1,4 +1,4 @@
-# IML向け Scrapbox 情報可視化 Chrome 拡張機能です
+IML向け Scrapbox 情報可視化 Chrome 拡張機能です
 
 ## 機能
 IMLプロジェクトを開くと，ページによって次の情報を表示するポップアップウィンドウが表示されます．
@@ -23,5 +23,65 @@ IMLプロジェクトを開くと，ページによって次の情報を表示�
 - Chromeの拡張機能としてインストールすること，IMLプロジェクトを開いているとログイン状態になります．
 - 常駐ソフトウェアをインストールすると，Windows及びMacOSにログインしているとログイン状態になります．
 
-## 使い方
-- ZIPをダウンロードしてください
+## 拡張機能の使い方
+- GitHub のリリースページから ZIP ファイルをダウンロードします
+  - https://github.com/naokikato/scrapbox-information-viewer-for-iml/releases/latest
+- Chromeで chrome://extensions を開きます
+- 「デベロッパーモード」をオンにします
+- 「パッケージ化されていない拡張機能を読み込む」で解凍したフォルダを選択します
+
+## 常駐アプリの使い方
+
+### Mac の場合
+
+1. アプリをダウンロード
+- GitHub のリリースページからダウンロードします。
+  - https://github.com/naokikato/scrapbox-information-viewer-for-iml/releases/latest
+    - **M1/M2/M3 Mac** の方 → `IMLPresence_mac.zip`
+    - **Intel Mac** の方 → `IMLPresence_mac_intel.zip`
+
+2. アプリをインストール
+- ダウンロードした ZIP ファイルをダブルクリックして展開する
+- 展開された `IMLPresence.app`（または `IMLPresence_intel.app`）を **Applications（アプリケーション）フォルダ** にコピーする
+
+3. 初回起動
+- アプリケーションフォルダから `IMLPresence.app` をダブルクリックして起動する
+- 「開発元を確認できません」と表示された場合は、**右クリック → 開く → 開く** を選択する
+- 名前入力ダイアログが表示されるので、**Scrapbox のユーザ名** を入力して OK を押す
+
+### Windows の場合
+
+1. アプリをダウンロード
+- GitHub のリリースページからダウンロードします。
+  - https://github.com/naokikato/scrapbox-information-viewer-for-iml/releases/latest
+    - `IMLPresence.exe` をダウンロードする
+
+2. 初回起動
+- ダウンロードした `IMLPresence.exe` を適当なフォルダ（例: `C:\Users\ユーザー名\IMLPresence\`）に移動する
+- `IMLPresence.exe` をダブルクリックして起動する
+- 「Windows によって PC が保護されました」と表示された場合は、**詳細情報 → 実行** を選択する
+- 名前入力ダイアログが表示されるので、**Scrapbox の表示名**（日本語の氏名）を入力して OK を押す
+
+### 使い方
+- 起動すると、メニューバー（Mac）またはタスクトレイ（Windows）にアイコンが表示されます。
+- アイコンをクリックするとメニューが表示されます。
+
+| メニュー | 動作 |
+|---|---|
+| 一時停止 | オンライン通知を停止する（もう一度押すと再開） |
+| 30分停止 | 30分後に自動的に再開 |
+| 1時間停止 | 1時間後に自動的に再開 |
+| 3時間停止 | 3時間後に自動的に再開 |
+| 終了 | アプリを終了する |
+
+### アイコンの見方
+
+| アイコン | 状態 |
+|---|---|
+| 白丸・IML（Mac）/ 緑丸・IML（Windows） | オンライン通知中 |
+| グレー丸・IML | 停止中（手動または時間指定） |
+| 薄グレー丸・IML | スケジュールにより停止中 |
+
+### 自動停止スケジュール
+- 初期設定では **平日の 8:30〜18:00** のみオンライン通知を行います。
+- それ以外の時間帯（夜間・土日）は自動的に停止します。
