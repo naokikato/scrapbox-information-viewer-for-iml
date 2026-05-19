@@ -212,16 +212,42 @@ def delete_presence(config):
         pass
 
 # ---- トレイアイコン画像生成 ----
-def make_icon_image(color):
+def _load_font(size):
+    from PIL import ImageFont
+    candidates = [
+        "/System/Library/Fonts/Helvetica.ttc",
+        "/System/Library/Fonts/SFNSDisplay.ttf",
+        "C:/Windows/Fonts/arialbd.ttf",
+        "C:/Windows/Fonts/arial.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    ]
+    for path in candidates:
+        try:
+            return ImageFont.truetype(path, size)
+        except Exception:
+            pass
+    return ImageFont.load_default()
+
+def make_icon_image(fill, text_color, outline=None):
     size = 64
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    img  = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    draw.ellipse([4, 4, size - 4, size - 4], fill=color)
+    draw.ellipse([3, 3, size - 3, size - 3],
+                 fill=fill,
+                 outline=outline or fill,
+                 width=2 if outline else 0)
+    font = _load_font(20)
+    text = "IML"
+    bbox = draw.textbbox((0, 0), text, font=font)
+    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    x = (size - tw) / 2 - bbox[0]
+    y = (size - th) / 2 - bbox[1]
+    draw.text((x, y), text, fill=text_color, font=font)
     return img
 
-ICON_ONLINE   = make_icon_image("#4caf50")  # 緑：オンライン
-ICON_PAUSED   = make_icon_image("#aaaaaa")  # グレー：手動一時停止
-ICON_SCHEDULE = make_icon_image("#cccccc")  # 薄グレー：スケジュール停止中
+ICON_ONLINE   = make_icon_image("#ffffff", "#333333", outline="#999999")  # 白丸・暗色文字
+ICON_PAUSED   = make_icon_image("#aaaaaa", "#ffffff")                     # グレー丸・白文字
+ICON_SCHEDULE = make_icon_image("#cccccc", "#888888")                     # 薄グレー丸・灰文字
 
 # ---- バックグラウンドで photo を更新 ----
 def refresh_photo_async(config):
