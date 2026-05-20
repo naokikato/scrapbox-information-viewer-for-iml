@@ -12,9 +12,12 @@ const LIMIT = 10;
 // 例: "https://your-project-default-rtdb.firebaseio.com"
 const FIREBASE_URL = "https://iml-presence-default-rtdb.asia-southeast1.firebasedatabase.app";
 const CHAT_PAGE    = "チャット";
-const PRESENCE_TTL = 90; // 秒：この秒数以上更新がなければオフライン扱い
+const PRESENCE_TTL     = 90;  // 秒：この秒数以上更新がなければオフライン扱い
+const NOTIFICATION_TTL = 180; // 秒：3分間通知を表示
 
-let userDismissed = false;
+let userDismissed   = false;
+let _currentShadow  = null;
+let _currentHost    = null;
 
 // ---- URL 判定 ----
 function isWithinProject() {
@@ -225,6 +228,63 @@ async function fetchPresence() {
     .sort((a, b) => (a.name || "").localeCompare(b.name || "", "ja"));
 }
 
+// ---- 通知 ----
+async function sendNotification(toName) {
+  if (!FIREBASE_URL) return;
+  const me = await getMe();
+  if (!me) return;
+  fetch(`${FIREBASE_URL}/notifications/${presenceKey(toName)}.json`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ from: me.name, ts: Math.floor(Date.now() / 1000) })
+  }).catch(() => {});
+}
+
+async function fetchMyNotification() {
+  if (!FIREBASE_URL) return null;
+  const me = await getMe();
+  if (!me) return null;
+  const r = await fetch(`${FIREBASE_URL}/notifications/${presenceKey(me.name)}.json`).catch(() => null);
+  if (!r?.ok) return null;
+  const data = await r.json().catch(() => null);
+  if (!data || !data.ts) return null;
+  const now = Math.floor(Date.now() / 1000);
+  if (now - data.ts >= NOTIFICATION_TTL) return null;
+  return data; // { from, ts }
+}
+
+async function checkNotification() {
+  const notif = await fetchMyNotification();
+
+  // 再開ボタンの色
+  const btn = document.getElementById("scrapbox-cv-reopen");
+  if (btn) {
+    btn.style.background = notif ? "#e74c3c" : "#4a90e2";
+    btn.title = notif ? `${notif.from}が呼んでいます` : "IML Viewer を表示";
+  }
+
+  // パネルヘッダーの色と通知テキスト
+  if (_currentShadow && _currentHost?.isConnected) {
+    const header = _currentShadow.getElementById("header");
+    if (header) {
+      if (notif) {
+        header.style.background = "#e74c3c";
+        let span = _currentShadow.getElementById("notif-text");
+        if (!span) {
+          span = document.createElement("span");
+          span.id = "notif-text";
+          span.style.cssText = "color:#fff;font-size:11px;font-weight:bold;flex:1;text-align:left;padding-left:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+          header.insertBefore(span, header.firstChild);
+        }
+        span.textContent = `${notif.from}が呼んでいます`;
+      } else {
+        header.style.background = "";
+        _currentShadow.getElementById("notif-text")?.remove();
+      }
+    }
+  }
+}
+
 // ---- popup からのメッセージに応答 ----
 chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   if (request.type !== "GET_CONTRIBUTIONS") return;
@@ -252,6 +312,7 @@ function showReopenButton() {
   `;
   btn.addEventListener("click", () => { userDismissed = false; updateUI(); });
   document.body.appendChild(btn);
+  checkNotification(); // 通知があれば即座にボタンを赤くする
 }
 
 function updateUI() {
@@ -294,6 +355,8 @@ function showTabbedPanel(tabDefs, width = "280px") {
   removeExisting();
   const host = createHost(width);
   const shadow = host.attachShadow({ mode: "open" });
+  _currentShadow = shadow;
+  _currentHost   = host;
   const multi = tabDefs.length > 1;
 
   shadow.innerHTML = `
@@ -544,6 +607,8 @@ function initPresenceTab(pane, shadow, host) {
   s.textContent = `
     #icon-grid{display:flex;flex-wrap:wrap;gap:8px;padding:4px 0;min-height:40px;}
     .u-wrap{position:relative;cursor:default;}
+    .u-wrap.notifiable{cursor:pointer;}
+    .u-wrap.notifiable:hover .u-icon,.u-wrap.notifiable:hover .u-initial{opacity:.8;}
     .u-icon{width:36px;height:36px;border-radius:50%;object-fit:cover;
       border:2px solid #4caf50;display:block;}
     .u-initial{width:36px;height:36px;border-radius:50%;background:#4a90e2;
@@ -563,7 +628,7 @@ function initPresenceTab(pane, shadow, host) {
       pane.querySelector("#icon-grid").innerHTML = `<div style="font-size:11px;color:#aaa;">FIREBASE_URL が未設定です</div>`;
       return;
     }
-    fetchPresence().then(users => {
+    Promise.all([fetchPresence(), getMe()]).then(([users, me]) => {
       const g = pane.querySelector("#icon-grid");
       const lu = pane.querySelector("#last-upd");
       if (!g) return;
@@ -576,7 +641,14 @@ function initPresenceTab(pane, shadow, host) {
           const avatar = u.photo
             ? `<img class="u-icon" src="${esc(u.photo)}" alt="${esc(u.name)}">`
             : `<div class="u-initial">${esc((u.name || "?")[0])}</div>`;
-          wrap.innerHTML = `${avatar}<div class="u-tooltip">${esc(u.name)}</div>`;
+          const tooltipText = me && u.name !== me.name
+            ? `${esc(u.name)}（クリックで呼ぶ）`
+            : esc(u.name);
+          wrap.innerHTML = `${avatar}<div class="u-tooltip">${tooltipText}</div>`;
+          if (me && u.name !== me.name) {
+            wrap.classList.add("notifiable");
+            wrap.addEventListener("click", () => sendNotification(u.name));
+          }
           g.appendChild(wrap);
         }
       }
@@ -778,3 +850,5 @@ updateUI();
 if (isPersonalDiaryPage()) scrollToToday();
 if (isPresencePage()) scrollToChatBottom();
 startHeartbeat();
+checkNotification();
+setInterval(checkNotification, 10_000);
