@@ -559,6 +559,7 @@ function initHeatmapTab(pane, shadow, host) {
       pane.querySelector("#month-label").textContent = `${year}年${month}月`;
       const daysInMonth = new Date(year, month, 0).getDate();
       const ym = `${year}-${String(month).padStart(2, "0")}`;
+      const todayKey = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
       const table = document.createElement("table");
       table.className = "hm-table";
       const thead = document.createElement("tr");
@@ -581,10 +582,12 @@ function initHeatmapTab(pane, shadow, host) {
         tr.appendChild(nameTd);
         for (let d = 1; d <= daysInMonth; d++) {
           const dateKey = `${ym}-${String(d).padStart(2, "0")}`;
+          const isFuture = dateKey > todayKey;
           const c = dateMap[dateKey] ?? -1;
           const td = document.createElement("td");
-          td.className = "hm-cell"; td.style.background = dayColor(c);
-          if (c >= 0) td.title = `${name} ${year}/${month}/${d}：${c}文字`;
+          td.className = "hm-cell";
+          td.style.background = isFuture ? "transparent" : dayColor(c);
+          if (c >= 0 && !isFuture) td.title = `${name} ${year}/${month}/${d}：${c}文字`;
           tr.appendChild(td);
         }
         table.appendChild(tr);
