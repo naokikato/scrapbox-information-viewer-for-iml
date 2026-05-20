@@ -502,6 +502,10 @@ function initDiaryTab(pane, shadow, host) {
         <div class="day-hdr">金</div>
         <div class="day-hdr sat">土</div><div class="day-hdr sun">日</div>
       </div>`;
+    const todayNum = (() => {
+      const t = new Date();
+      return t.getFullYear() * 10000 + (t.getMonth() + 1) * 100 + t.getDate();
+    })();
     function render() {
       const ym = monthKeys[idx];
       const [y, m] = ym.split("-").map(Number);
@@ -518,10 +522,11 @@ function initDiaryTab(pane, shadow, host) {
       for (let d = 1; d <= new Date(y, m, 0).getDate(); d++) {
         const el = document.createElement("div");
         el.className = "day-cell";
+        const isFuture = y * 10000 + m * 100 + d > todayNum;
         const c = dayData[d] ?? -1;
-        el.style.background = dayColor(c);
+        el.style.background = isFuture ? "transparent" : dayColor(c);
         el.innerHTML = `<span>${d}</span>`;
-        if (c >= 0) el.title = `${c}文字`;
+        if (c >= 0 && !isFuture) el.title = `${c}文字`;
         grid.appendChild(el);
       }
     }
