@@ -660,7 +660,7 @@ function initPresenceTab(pane, shadow, host) {
   const timer = setInterval(() => {
     if (!host.isConnected) { clearInterval(timer); return; }
     refresh();
-  }, 30_000);
+  }, 60_000);
 }
 
 // ---- 色計算 ----
@@ -851,4 +851,4 @@ if (isPersonalDiaryPage()) scrollToToday();
 if (isPresencePage()) scrollToChatBottom();
 startHeartbeat();
 checkNotification();
-setInterval(checkNotification, 10_000);
+setInterval(checkNotification, 30_000);
