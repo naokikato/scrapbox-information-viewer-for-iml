@@ -147,6 +147,8 @@ function fetchHeatmapData(_pathname) {
 
 // ---- Firebase プレゼンス ----
 let _meUser = null;
+let _meUserFetchedAt = 0;
+const ME_CACHE_TTL = 60 * 60 * 1000; // 1時間
 let _heartbeatTimer = null;
 
 // name が ID そのもの（16進数 20文字以上）かどうかを判定
@@ -155,7 +157,7 @@ function looksLikeId(name) {
 }
 
 async function getMe() {
-  if (_meUser) return _meUser;
+  if (_meUser && Date.now() - _meUserFetchedAt < ME_CACHE_TTL) return _meUser;
   return fetchAndCacheMe();
 }
 
@@ -170,6 +172,7 @@ async function fetchAndCacheMe() {
     const photo = meData.photo || meData.photoURL || "";
     if (!id || !name || looksLikeId(name)) return _meUser;
     _meUser = { id, name, photo };
+    _meUserFetchedAt = Date.now();
   } catch { }
   return _meUser;
 }
