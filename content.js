@@ -177,24 +177,25 @@ async function fetchAndCacheMe() {
     const u = pageData?.user;
     if (!u?.id) return _meUser;
 
-    let photo = u.photo || u.photoURL || "";
+    let name  = u.displayName || u.name  || "";
+    let photo = u.photo       || u.photoURL || "";
 
-    // photo が空の場合のみプロジェクト API でID照合して補完
-    if (!photo) {
+    // name または photo が不足している場合はプロジェクト API でID照合して補完
+    if (!name || !photo) {
       const projRes = await fetch(`https://scrapbox.io/api/projects/${AUTO_SHOW_PROJECT}`, { credentials: "include" });
       if (projRes.ok) {
         const projData = await projRes.json();
-        const members = projData.users || projData.members || [];
+        const members  = projData.users || projData.members || [];
         const me = members.find(m => (m.id || m._id) === u.id);
-        photo = me?.photo || me?.photoURL || "";
+        if (!name)  name  = me?.displayName || me?.name  || "";
+        if (!photo) photo = me?.photo       || me?.photoURL || "";
       }
     }
 
-    const user = {
-      id: u.id,
-      name: u.displayName || u.name || u.id,
-      photo
-    };
+    // 名前が取得できなければ Firebase への書き込みを行わない（IDがそのまま登録されるのを防ぐ）
+    if (!name) return _meUser;
+
+    const user = { id: u.id, name, photo };
     _meUser = user;
     chrome.storage.local.set({ scrapboxMe: user }).catch(() => {});
   } catch { }
