@@ -793,6 +793,9 @@ function initPresenceTab(pane, shadow, host) {
             _sentTo = u.name;
             _sentTs = Math.floor(Date.now() / 1000);
             sendNotification(u.name);
+            // 即座にアイコン枠を青色にする（refresh() の完了を待たない）
+            const iconEl = wrap.querySelector(".u-icon, .u-initial");
+            if (iconEl) iconEl.style.borderColor = "#4a90e2";
             refresh();
           });
         }
