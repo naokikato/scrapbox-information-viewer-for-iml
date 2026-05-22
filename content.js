@@ -149,6 +149,11 @@ function fetchHeatmapData(_pathname) {
 let _meUser = null;
 let _heartbeatTimer = null;
 
+// name が ID そのもの（16進数 20文字以上）かどうかを判定
+function looksLikeId(name) {
+  return /^[0-9a-f]{20,}$/i.test(name || "");
+}
+
 async function getMe() {
   if (_meUser) return _meUser;
   // chrome.storage.local にキャッシュがあれば即座に使い、バックグラウンドで photo を再確認
@@ -156,8 +161,8 @@ async function getMe() {
     const stored = await chrome.storage.local.get("scrapboxMe");
     if (stored.scrapboxMe?.id) {
       _meUser = stored.scrapboxMe;
-      // photo が空の場合は即座に再取得（キャッシュに photo がなければ Firebase への書き込みが不完全）
-      if (!_meUser.photo) {
+      // name が ID そのもの、または photo が空の場合は即座に再取得
+      if (looksLikeId(_meUser.name) || !_meUser.photo) {
         return fetchAndCacheMe();
       }
       fetchAndCacheMe(); // バックグラウンドで最新情報に更新
