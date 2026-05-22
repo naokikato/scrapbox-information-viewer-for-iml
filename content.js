@@ -228,6 +228,40 @@ async function fetchPresence() {
     .sort((a, b) => (a.name || "").localeCompare(b.name || "", "ja"));
 }
 
+// ---- メンバー写真キャッシュ ----
+let _memberPhotos = null;
+
+async function fetchMemberPhotos() {
+  if (_memberPhotos) return _memberPhotos;
+  try {
+    const r = await fetch(`https://scrapbox.io/api/projects/${AUTO_SHOW_PROJECT}`, { credentials: "include" });
+    if (!r.ok) return {};
+    const data = await r.json();
+    const members = data.users || data.members || [];
+    _memberPhotos = {};
+    for (const m of members) {
+      const name = m.displayName || m.name;
+      const photo = m.photo || m.photoURL || "";
+      if (name) _memberPhotos[name] = photo;
+    }
+  } catch {}
+  return _memberPhotos || {};
+}
+
+// ---- チャット最新行取得 ----
+async function fetchChatRecent(n = 5) {
+  const path = `/${AUTO_SHOW_PROJECT}/${encodeURIComponent(CHAT_PAGE)}`;
+  const r = await fetch(`https://scrapbox.io/api/pages${path}`, { credentials: "include" }).catch(() => null);
+  if (!r?.ok) return [];
+  const data = await r.json().catch(() => null);
+  if (!data?.lines) return [];
+  return data.lines
+    .slice(1)                                    // タイトル行を除く
+    .filter(l => l.text.trim() !== "")           // 空行を除く
+    .sort((a, b) => b.updated - a.updated)       // 更新が新しい順
+    .slice(0, n);
+}
+
 // ---- 通知 ----
 async function sendNotification(toName) {
   if (!FIREBASE_URL) return;
@@ -627,15 +661,43 @@ function initPresenceTab(pane, shadow, host) {
       font-size:10px;border-radius:4px;padding:4px 7px;white-space:nowrap;
       pointer-events:none;z-index:1;}
     .u-wrap:hover .u-tooltip{display:block;}
-    #last-upd{font-size:10px;color:#bbb;text-align:right;margin-top:6px;}`;
+    #last-upd{font-size:10px;color:#bbb;text-align:right;margin-top:6px;}
+    #chat-recent{margin-top:10px;border-top:1px solid #eee;padding-top:8px;}
+    .chat-recent-hdr{font-size:10px;color:#aaa;margin-bottom:5px;}
+    .recent-line{display:flex;align-items:flex-start;gap:5px;margin-bottom:5px;}
+    .line-icon{width:18px;height:18px;border-radius:50%;object-fit:cover;flex-shrink:0;margin-top:1px;}
+    .line-initial{width:18px;height:18px;border-radius:50%;background:#4a90e2;
+      color:#fff;font-size:8px;font-weight:bold;display:flex;align-items:center;
+      justify-content:center;flex-shrink:0;margin-top:1px;}
+    .line-text{font-size:11px;color:#333;line-height:1.5;word-break:break-all;}`;
   shadow.appendChild(s);
-  pane.innerHTML = `<div id="icon-grid"><div style="font-size:11px;color:#aaa;padding:4px 0;">読み込み中...</div></div><div id="last-upd"></div>`;
+  pane.innerHTML = `
+    <div id="icon-grid"><div style="font-size:11px;color:#aaa;padding:4px 0;">読み込み中...</div></div>
+    <div id="last-upd"></div>
+    <div id="chat-recent"></div>`;
+
+  // [name.icon] をアイコン画像に置換して行HTMLを生成
+  function renderLine(text, photoMap) {
+    const m = text.match(/^\[([^\]]+)\.icon\]\s*/);
+    if (m) {
+      const name = m[1];
+      const photo = photoMap[name] || "";
+      const rest = text.slice(m[0].length);
+      const iconHtml = photo
+        ? `<img class="line-icon" src="${esc(photo)}" alt="${esc(name)}" title="${esc(name)}">`
+        : `<span class="line-initial" title="${esc(name)}">${esc((name || "?")[0])}</span>`;
+      return `<div class="recent-line">${iconHtml}<span class="line-text">${esc(rest)}</span></div>`;
+    }
+    return `<div class="recent-line"><span class="line-text">${esc(text)}</span></div>`;
+  }
 
   function refresh() {
     if (!FIREBASE_URL) {
       pane.querySelector("#icon-grid").innerHTML = `<div style="font-size:11px;color:#aaa;">FIREBASE_URL が未設定です</div>`;
       return;
     }
+
+    // オンラインユーザー
     Promise.all([fetchPresence(), getMe()]).then(([users, me]) => {
       const g = pane.querySelector("#icon-grid");
       const lu = pane.querySelector("#last-upd");
@@ -661,6 +723,15 @@ function initPresenceTab(pane, shadow, host) {
         }
       }
       if (lu) lu.textContent = `更新: ${new Date().toLocaleTimeString("ja-JP")}`;
+    });
+
+    // チャット最新行
+    Promise.all([fetchChatRecent(5), fetchMemberPhotos()]).then(([lines, photoMap]) => {
+      const cr = pane.querySelector("#chat-recent");
+      if (!cr) return;
+      if (lines.length === 0) { cr.innerHTML = ""; return; }
+      cr.innerHTML = `<div class="chat-recent-hdr">チャット 最新書き込み</div>`
+        + lines.map(l => renderLine(l.text, photoMap)).join("");
     });
   }
 
