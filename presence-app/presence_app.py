@@ -194,11 +194,11 @@ def push_presence(config):
         photo = config.get("photo", "")
         if photo:
             # photo が既知 → PUT で全フィールドを書き込む
-            payload = {"name": config["name"], "photo": photo, "ts": int(time.time()), "source": "app"}
+            payload = {"name": config["name"], "photo": photo, "ts": int(time.time())}
             requests.put(url, json=payload, timeout=10)
         else:
             # photo 未取得 → PATCH で name と ts のみ更新（既存 photo を保持）
-            payload = {"name": config["name"], "ts": int(time.time()), "source": "app"}
+            payload = {"name": config["name"], "ts": int(time.time())}
             requests.patch(url, json=payload, timeout=10)
     except Exception:
         pass

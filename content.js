@@ -175,7 +175,7 @@ async function getMe() {
 
 async function fetchAndCacheMe() {
   try {
-    // プロジェクトAPIのメンバー一覧でID照合して名前・photoを取得（v1.1と同じ確実な方式）
+    // プロジェクトAPIのメンバー一覧でID照合して名前・photoを取得
     const listPath = `/${AUTO_SHOW_PROJECT}/${encodeURIComponent(STUDENT_LIST_PAGE)}`;
     const [projRes, pageRes] = await Promise.all([
       fetch(`https://scrapbox.io/api/projects/${AUTO_SHOW_PROJECT}`, { credentials: "include" }),
@@ -214,7 +214,7 @@ async function pushPresence() {
   fetch(`${FIREBASE_URL}/presence/${presenceKey(me.name)}.json`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: me.name, photo: me.photo, ts: Math.floor(Date.now() / 1000), source: "extension" })
+    body: JSON.stringify({ name: me.name, photo: me.photo, ts: Math.floor(Date.now() / 1000) })
   }).catch(() => {});
 }
 
@@ -270,7 +270,7 @@ async function fetchMemberPhotos() {
 }
 
 // ---- チャット最新行取得 ----
-async function fetchChatRecent(n = 5) {
+async function fetchChatRecent(n = 1) {
   const path = `/${AUTO_SHOW_PROJECT}/${encodeURIComponent(CHAT_PAGE)}`;
   const r = await fetch(`https://scrapbox.io/api/pages${path}`, { credentials: "include" }).catch(() => null);
   if (!r?.ok) return [];
@@ -855,13 +855,6 @@ function monthNavHtml() {
     <button class="nav-btn" id="prev-btn">&#8249;</button>
     <span id="month-label"></span>
     <button class="nav-btn" id="next-btn">&#8250;</button>
-  </div>`;
-}
-
-function headerHtml(title) {
-  return `<div id="header">
-    <span id="title-text">${esc(title)}</span>
-    <button id="close-btn" title="閉じる">×</button>
   </div>`;
 }
 
