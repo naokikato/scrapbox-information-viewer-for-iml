@@ -151,12 +151,16 @@ let _heartbeatTimer = null;
 
 async function getMe() {
   if (_meUser) return _meUser;
-  // chrome.storage.local にキャッシュがあれば即座に使い、バックグラウンドで更新
+  // chrome.storage.local にキャッシュがあれば即座に使い、バックグラウンドで photo を再確認
   try {
     const stored = await chrome.storage.local.get("scrapboxMe");
     if (stored.scrapboxMe?.id) {
       _meUser = stored.scrapboxMe;
-      fetchAndCacheMe();
+      // photo が空の場合は即座に再取得（キャッシュに photo がなければ Firebase への書き込みが不完全）
+      if (!_meUser.photo) {
+        return fetchAndCacheMe();
+      }
+      fetchAndCacheMe(); // バックグラウンドで最新情報に更新
       return _meUser;
     }
   } catch { }
@@ -165,25 +169,34 @@ async function getMe() {
 
 async function fetchAndCacheMe() {
   try {
+    // ページ API のレスポンスにはログインユーザー自身の情報（photo 含む）が直接入っている
     const listPath = `/${AUTO_SHOW_PROJECT}/${encodeURIComponent(STUDENT_LIST_PAGE)}`;
-    const [projRes, pageRes] = await Promise.all([
-      fetch(`https://scrapbox.io/api/projects/${AUTO_SHOW_PROJECT}`, { credentials: "include" }),
-      fetch(`https://scrapbox.io/api/pages${listPath}`, { credentials: "include" })
-    ]);
-    const projData = projRes.ok ? await projRes.json() : null;
-    const pageData = pageRes.ok ? await pageRes.json() : null;
-    const myId = pageData?.user?.id;
-    if (myId && projData) {
-      const members = projData.users || projData.members || [];
-      const me = members.find(u => (u.id || u._id) === myId);
-      const user = {
-        id: myId,
-        name: me?.displayName || me?.name || myId,
-        photo: me?.photo || me?.photoURL || ""
-      };
-      _meUser = user;
-      chrome.storage.local.set({ scrapboxMe: user }).catch(() => {});
+    const pageRes = await fetch(`https://scrapbox.io/api/pages${listPath}`, { credentials: "include" });
+    if (!pageRes.ok) return _meUser;
+    const pageData = await pageRes.json();
+    const u = pageData?.user;
+    if (!u?.id) return _meUser;
+
+    let photo = u.photo || u.photoURL || "";
+
+    // photo が空の場合のみプロジェクト API でID照合して補完
+    if (!photo) {
+      const projRes = await fetch(`https://scrapbox.io/api/projects/${AUTO_SHOW_PROJECT}`, { credentials: "include" });
+      if (projRes.ok) {
+        const projData = await projRes.json();
+        const members = projData.users || projData.members || [];
+        const me = members.find(m => (m.id || m._id) === u.id);
+        photo = me?.photo || me?.photoURL || "";
+      }
     }
+
+    const user = {
+      id: u.id,
+      name: u.displayName || u.name || u.id,
+      photo
+    };
+    _meUser = user;
+    chrome.storage.local.set({ scrapboxMe: user }).catch(() => {});
   } catch { }
   return _meUser;
 }
@@ -706,8 +719,8 @@ function initPresenceTab(pane, shadow, host) {
       return;
     }
 
-    // オンラインユーザー（Firebase photo が空の場合はプロジェクト API の photo にフォールバック）
-    Promise.all([fetchPresence(), getMe(), fetchMemberPhotos()]).then(([users, me, memberPhotos]) => {
+    // オンラインユーザー
+    Promise.all([fetchPresence(), getMe()]).then(([users, me]) => {
       const g = pane.querySelector("#icon-grid");
       if (!g) return;
       if (users.length === 0) {
@@ -716,9 +729,8 @@ function initPresenceTab(pane, shadow, host) {
         g.innerHTML = "";
         for (const u of users) {
           const wrap = document.createElement("div"); wrap.className = "u-wrap";
-          const photo = u.photo || memberPhotos[u.name] || "";
-          const avatar = photo
-            ? `<img class="u-icon" src="${esc(photo)}" alt="${esc(u.name)}">`
+          const avatar = u.photo
+            ? `<img class="u-icon" src="${esc(u.photo)}" alt="${esc(u.name)}">`
             : `<div class="u-initial">${esc((u.name || "?")[0])}</div>`;
           const tooltipText = me && u.name !== me.name
             ? `${esc(u.name)}（クリックで呼ぶ）`
