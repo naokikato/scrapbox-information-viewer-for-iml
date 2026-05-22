@@ -175,11 +175,10 @@ async function getMe() {
 
 async function fetchAndCacheMe() {
   try {
-    // プロジェクトAPIのメンバー一覧でID照合して名前・photoを取得
-    const listPath = `/${AUTO_SHOW_PROJECT}/${encodeURIComponent(STUDENT_LIST_PAGE)}`;
+    // 現在開いているページとプロジェクトAPIから自分のIDと名前・photoを取得
     const [projRes, pageRes] = await Promise.all([
       fetch(`https://scrapbox.io/api/projects/${AUTO_SHOW_PROJECT}`, { credentials: "include" }),
-      fetch(`https://scrapbox.io/api/pages${listPath}`,              { credentials: "include" })
+      fetch(`https://scrapbox.io/api/pages${location.pathname}`,     { credentials: "include" })
     ]);
     const projData = projRes.ok ? await projRes.json() : null;
     const pageData = pageRes.ok ? await pageRes.json() : null;
