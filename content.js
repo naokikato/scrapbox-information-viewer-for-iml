@@ -664,31 +664,35 @@ function initPresenceTab(pane, shadow, host) {
     #last-upd{font-size:10px;color:#bbb;text-align:right;margin-top:6px;}
     #chat-recent{margin-top:10px;border-top:1px solid #eee;padding-top:8px;}
     .chat-recent-hdr{font-size:10px;color:#aaa;margin-bottom:5px;}
-    .recent-line{display:flex;align-items:flex-start;gap:5px;margin-bottom:5px;}
-    .line-icon{width:18px;height:18px;border-radius:50%;object-fit:cover;flex-shrink:0;margin-top:1px;}
-    .line-initial{width:18px;height:18px;border-radius:50%;background:#4a90e2;
-      color:#fff;font-size:8px;font-weight:bold;display:flex;align-items:center;
-      justify-content:center;flex-shrink:0;margin-top:1px;}
-    .line-text{font-size:11px;color:#333;line-height:1.5;word-break:break-all;}`;
+    .recent-line{font-size:11px;color:#333;line-height:1.8;word-break:break-all;}
+    .line-icon{width:18px;height:18px;border-radius:50%;object-fit:cover;
+      vertical-align:middle;margin:0 1px;}
+    .line-initial{display:inline-flex;width:18px;height:18px;border-radius:50%;
+      background:#4a90e2;color:#fff;font-size:8px;font-weight:bold;
+      align-items:center;justify-content:center;
+      vertical-align:middle;margin:0 1px;}
+    .line-text{vertical-align:middle;}`;
   shadow.appendChild(s);
   pane.innerHTML = `
     <div id="icon-grid"><div style="font-size:11px;color:#aaa;padding:4px 0;">読み込み中...</div></div>
     <div id="last-upd"></div>
     <div id="chat-recent"></div>`;
 
-  // [name.icon] をアイコン画像に置換して行HTMLを生成
+  // 行中の [name.icon] を全てアイコン画像にインライン置換
   function renderLine(text, photoMap) {
-    const m = text.match(/^\[([^\]]+)\.icon\]\s*/);
-    if (m) {
+    const re = /\[([^\]]+)\.icon\]/g;
+    let html = "", last = 0, m;
+    while ((m = re.exec(text)) !== null) {
+      if (m.index > last) html += `<span class="line-text">${esc(text.slice(last, m.index))}</span>`;
       const name = m[1];
       const photo = photoMap[name] || "";
-      const rest = text.slice(m[0].length);
-      const iconHtml = photo
+      html += photo
         ? `<img class="line-icon" src="${esc(photo)}" alt="${esc(name)}" title="${esc(name)}">`
         : `<span class="line-initial" title="${esc(name)}">${esc((name || "?")[0])}</span>`;
-      return `<div class="recent-line">${iconHtml}<span class="line-text">${esc(rest)}</span></div>`;
+      last = m.index + m[0].length;
     }
-    return `<div class="recent-line"><span class="line-text">${esc(text)}</span></div>`;
+    if (last < text.length) html += `<span class="line-text">${esc(text.slice(last))}</span>`;
+    return `<div class="recent-line">${html}</div>`;
   }
 
   function refresh() {
@@ -726,7 +730,7 @@ function initPresenceTab(pane, shadow, host) {
     });
 
     // チャット最新行
-    Promise.all([fetchChatRecent(5), fetchMemberPhotos()]).then(([lines, photoMap]) => {
+    Promise.all([fetchChatRecent(1), fetchMemberPhotos()]).then(([lines, photoMap]) => {
       const cr = pane.querySelector("#chat-recent");
       if (!cr) return;
       if (lines.length === 0) { cr.innerHTML = ""; return; }
