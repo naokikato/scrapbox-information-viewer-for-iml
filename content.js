@@ -706,10 +706,9 @@ function initPresenceTab(pane, shadow, host) {
       return;
     }
 
-    // オンラインユーザー
-    Promise.all([fetchPresence(), getMe()]).then(([users, me]) => {
+    // オンラインユーザー（Firebase photo が空の場合はプロジェクト API の photo にフォールバック）
+    Promise.all([fetchPresence(), getMe(), fetchMemberPhotos()]).then(([users, me, memberPhotos]) => {
       const g = pane.querySelector("#icon-grid");
-      const lu = pane.querySelector("#last-upd");
       if (!g) return;
       if (users.length === 0) {
         g.innerHTML = `<div style="font-size:11px;color:#aaa;padding:4px 0;">オンラインユーザーなし</div>`;
@@ -717,8 +716,9 @@ function initPresenceTab(pane, shadow, host) {
         g.innerHTML = "";
         for (const u of users) {
           const wrap = document.createElement("div"); wrap.className = "u-wrap";
-          const avatar = u.photo
-            ? `<img class="u-icon" src="${esc(u.photo)}" alt="${esc(u.name)}">`
+          const photo = u.photo || memberPhotos[u.name] || "";
+          const avatar = photo
+            ? `<img class="u-icon" src="${esc(photo)}" alt="${esc(u.name)}">`
             : `<div class="u-initial">${esc((u.name || "?")[0])}</div>`;
           const tooltipText = me && u.name !== me.name
             ? `${esc(u.name)}（クリックで呼ぶ）`
