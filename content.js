@@ -214,7 +214,7 @@ async function pushPresence() {
   fetch(`${FIREBASE_URL}/presence/${presenceKey(me.name)}.json`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: me.name, photo: me.photo, ts: Math.floor(Date.now() / 1000) })
+    body: JSON.stringify({ name: me.name, photo: me.photo, ts: Math.floor(Date.now() / 1000), source: "extension" })
   }).catch(() => {});
 }
 
