@@ -661,9 +661,7 @@ function initPresenceTab(pane, shadow, host) {
       font-size:10px;border-radius:4px;padding:4px 7px;white-space:nowrap;
       pointer-events:none;z-index:1;}
     .u-wrap:hover .u-tooltip{display:block;}
-    #last-upd{font-size:10px;color:#bbb;text-align:right;margin-top:6px;}
     #chat-recent{margin-top:10px;border-top:1px solid #eee;padding-top:8px;}
-    .chat-recent-hdr{font-size:10px;color:#aaa;margin-bottom:5px;}
     .recent-line{font-size:11px;color:#333;line-height:1.8;word-break:break-all;}
     .line-icon{width:18px;height:18px;border-radius:50%;object-fit:cover;
       vertical-align:middle;margin:0 1px;}
@@ -675,8 +673,14 @@ function initPresenceTab(pane, shadow, host) {
   shadow.appendChild(s);
   pane.innerHTML = `
     <div id="icon-grid"><div style="font-size:11px;color:#aaa;padding:4px 0;">読み込み中...</div></div>
-    <div id="last-upd"></div>
     <div id="chat-recent"></div>`;
+
+  // ヘッダーに更新時刻スパンを追加
+  const timeSpan = document.createElement("span");
+  timeSpan.id = "upd-time";
+  timeSpan.style.cssText = "font-size:10px;color:#aaa;flex:1;text-align:left;padding-left:2px;";
+  const hdr = shadow.getElementById("header");
+  if (hdr) hdr.insertBefore(timeSpan, hdr.firstChild);
 
   // Scrapbox記法を除去してから [name.icon] をアイコン画像にインライン置換
   function renderLine(text, photoMap) {
@@ -727,7 +731,8 @@ function initPresenceTab(pane, shadow, host) {
           g.appendChild(wrap);
         }
       }
-      if (lu) lu.textContent = `更新: ${new Date().toLocaleTimeString("ja-JP")}`;
+      const t = shadow.getElementById("upd-time");
+      if (t) t.textContent = new Date().toLocaleTimeString("ja-JP");
     });
 
     // チャット最新行
@@ -735,8 +740,7 @@ function initPresenceTab(pane, shadow, host) {
       const cr = pane.querySelector("#chat-recent");
       if (!cr) return;
       if (lines.length === 0) { cr.innerHTML = ""; return; }
-      cr.innerHTML = `<div class="chat-recent-hdr">チャット 最新書き込み</div>`
-        + lines.map(l => renderLine(l.text, photoMap)).join("");
+      cr.innerHTML = lines.map(l => renderLine(l.text, photoMap)).join("");
     });
   }
 
