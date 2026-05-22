@@ -186,6 +186,9 @@ async function fetchAndCacheMe() {
     let name  = u.displayName || u.name  || "";
     let photo = u.photo       || u.photoURL || "";
 
+    // name がIDそのものの場合は未取得として扱う
+    if (looksLikeId(name)) name = "";
+
     // name または photo が不足している場合はプロジェクト API でID照合して補完
     if (!name || !photo) {
       const projRes = await fetch(`https://scrapbox.io/api/projects/${AUTO_SHOW_PROJECT}`, { credentials: "include" });
