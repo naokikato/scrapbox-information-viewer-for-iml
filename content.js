@@ -15,9 +15,7 @@ const CHAT_PAGE    = "チャット";
 const PRESENCE_TTL     = 90;  // 秒：この秒数以上更新がなければオフライン扱い
 const NOTIFICATION_TTL = 180; // 秒：3分間通知を表示
 
-let userDismissed   = false;
-let _currentShadow  = null;
-let _currentHost    = null;
+let userDismissed = false;
 
 // ---- URL 判定 ----
 function isWithinProject() {
@@ -280,37 +278,6 @@ async function fetchMyNotification() {
   return data; // { from, ts }
 }
 
-async function checkNotification() {
-  const notif = await fetchMyNotification();
-
-  // 再開ボタンの色
-  const btn = document.getElementById("scrapbox-cv-reopen");
-  if (btn) {
-    btn.style.background = notif ? "#e74c3c" : "#4a90e2";
-    btn.title = notif ? `${notif.from}が呼んでいます` : "IML Viewer を表示";
-  }
-
-  // パネルヘッダーの色と通知テキスト
-  if (_currentShadow && _currentHost?.isConnected) {
-    const header = _currentShadow.getElementById("header");
-    if (header) {
-      if (notif) {
-        header.style.background = "#e74c3c";
-        let span = _currentShadow.getElementById("notif-text");
-        if (!span) {
-          span = document.createElement("span");
-          span.id = "notif-text";
-          span.style.cssText = "color:#fff;font-size:11px;font-weight:bold;flex:1;text-align:left;padding-left:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
-          header.insertBefore(span, header.firstChild);
-        }
-        span.textContent = `${notif.from}が呼んでいます`;
-      } else {
-        header.style.background = "";
-        _currentShadow.getElementById("notif-text")?.remove();
-      }
-    }
-  }
-}
 
 // ---- popup からのメッセージに応答 ----
 chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
@@ -339,7 +306,6 @@ function showReopenButton() {
   `;
   btn.addEventListener("click", () => { userDismissed = false; updateUI(); });
   document.body.appendChild(btn);
-  checkNotification(); // 通知があれば即座にボタンを赤くする
 }
 
 function updateUI() {
@@ -675,7 +641,29 @@ function initPresenceTab(pane, shadow, host) {
   const hdr = shadow.getElementById("header");
   if (hdr) hdr.insertBefore(timeSpan, hdr.firstChild);
 
-  // Scrapbox記法を除去してから [name.icon] をアイコン画像にインライン置換
+  // 通知状態
+  let _sentTo      = null; // 自分が通知を送ったユーザー名
+  let _sentTs      = null; // 送った時刻（ts）
+  let _ackedNotifTs = null; // 受信済みとした通知の ts
+
+  async function acknowledgeNotification(notifTs) {
+    _ackedNotifTs = notifTs;
+    const me = await getMe();
+    if (!me) return;
+    fetch(`${FIREBASE_URL}/notifications/${presenceKey(me.name)}.json`, {
+      method: "DELETE"
+    }).catch(() => {});
+  }
+
+  async function checkSentActive() {
+    if (!_sentTo || !_sentTs) return false;
+    const r = await fetch(`${FIREBASE_URL}/notifications/${presenceKey(_sentTo)}.json`).catch(() => null);
+    if (!r?.ok) return false;
+    const data = await r.json().catch(() => null);
+    if (!data || data.ts !== _sentTs) return false;
+    return (Math.floor(Date.now() / 1000) - data.ts) < NOTIFICATION_TTL;
+  }
+
   function renderLine(text, photoMap) {
     const cleaned = stripScrapboxNotation(text);
     const re = /\[([^\]]+)\.icon\]/g;
@@ -693,39 +681,76 @@ function initPresenceTab(pane, shadow, host) {
     return `<div class="recent-line">${html}</div>`;
   }
 
-  function refresh() {
+  async function refresh() {
     if (!FIREBASE_URL) {
       pane.querySelector("#icon-grid").innerHTML = `<div style="font-size:11px;color:#aaa;">FIREBASE_URL が未設定です</div>`;
       return;
     }
 
-    // オンラインユーザー
-    Promise.all([fetchPresence(), getMe()]).then(([users, me]) => {
-      const g = pane.querySelector("#icon-grid");
-      if (!g) return;
-      if (users.length === 0) {
-        g.innerHTML = `<div style="font-size:11px;color:#aaa;padding:4px 0;">オンラインユーザーなし</div>`;
-      } else {
-        g.innerHTML = "";
-        for (const u of users) {
-          const wrap = document.createElement("div"); wrap.className = "u-wrap";
-          const avatar = u.photo
-            ? `<img class="u-icon" src="${esc(u.photo)}" alt="${esc(u.name)}">`
-            : `<div class="u-initial">${esc((u.name || "?")[0])}</div>`;
-          const tooltipText = me && u.name !== me.name
-            ? `${esc(u.name)}（クリックで呼ぶ）`
-            : esc(u.name);
-          wrap.innerHTML = `${avatar}<div class="u-tooltip">${tooltipText}</div>`;
-          if (me && u.name !== me.name) {
-            wrap.classList.add("notifiable");
-            wrap.addEventListener("click", () => sendNotification(u.name));
-          }
-          g.appendChild(wrap);
+    const [users, me, notif, sentActive] = await Promise.all([
+      fetchPresence(),
+      getMe(),
+      fetchMyNotification(),
+      checkSentActive()
+    ]);
+
+    // 送信した通知が終了していたらクリア
+    if (_sentTo && !sentActive) { _sentTo = null; _sentTs = null; }
+
+    // 受信通知（既に受信済みの ts は無視）
+    const effectiveNotif = (notif && notif.ts !== _ackedNotifTs) ? notif : null;
+    const notifFrom = effectiveNotif?.from ?? null;
+
+    // オンラインユーザー描画
+    const g = pane.querySelector("#icon-grid");
+    if (!g) return;
+    if (users.length === 0) {
+      g.innerHTML = `<div style="font-size:11px;color:#aaa;padding:4px 0;">オンラインユーザーなし</div>`;
+    } else {
+      g.innerHTML = "";
+      for (const u of users) {
+        const wrap = document.createElement("div");
+        wrap.className = "u-wrap";
+        const isSelf     = me && u.name === me.name;
+        const isSentTo   = u.name === _sentTo;
+        const isCallerOf = u.name === notifFrom;
+
+        // アイコン枠の色
+        const borderColor = isSentTo   ? "#4a90e2"  // 青：自分が呼んだ
+                          : isCallerOf ? "#e74c3c"  // 赤：向こうが呼んでいる
+                          :              "#4caf50"; // 緑：通常
+
+        const avatar = u.photo
+          ? `<img class="u-icon" src="${esc(u.photo)}" alt="${esc(u.name)}" style="border-color:${borderColor}">`
+          : `<div class="u-initial" style="border-color:${borderColor}">${esc((u.name||"?")[0])}</div>`;
+
+        const tooltipText = isCallerOf ? `${esc(u.name)}（クリックで受信）`
+                          : !isSelf   ? `${esc(u.name)}（クリックで呼ぶ）`
+                          :              esc(u.name);
+
+        wrap.innerHTML = `${avatar}<div class="u-tooltip">${tooltipText}</div>`;
+
+        if (isCallerOf) {
+          wrap.classList.add("notifiable");
+          wrap.addEventListener("click", async () => {
+            await acknowledgeNotification(effectiveNotif.ts);
+            refresh();
+          });
+        } else if (!isSelf) {
+          wrap.classList.add("notifiable");
+          wrap.addEventListener("click", () => {
+            _sentTo = u.name;
+            _sentTs = Math.floor(Date.now() / 1000);
+            sendNotification(u.name);
+            refresh();
+          });
         }
+        g.appendChild(wrap);
       }
-      const t = shadow.getElementById("upd-time");
-      if (t) t.textContent = new Date().toLocaleTimeString("ja-JP");
-    });
+    }
+
+    const t = shadow.getElementById("upd-time");
+    if (t) t.textContent = new Date().toLocaleTimeString("ja-JP");
 
     // チャット最新行
     Promise.all([fetchChatRecent(1), fetchMemberPhotos()]).then(([lines, photoMap]) => {
@@ -740,7 +765,7 @@ function initPresenceTab(pane, shadow, host) {
   const timer = setInterval(() => {
     if (!host.isConnected) { clearInterval(timer); return; }
     refresh();
-  }, 60_000);
+  }, 30_000);
 }
 
 // ---- 色計算 ----
@@ -957,5 +982,3 @@ updateUI();
 if (isPersonalDiaryPage()) scrollToToday();
 if (isPresencePage()) scrollToChatBottom();
 startHeartbeat();
-checkNotification();
-setInterval(checkNotification, 30_000);
