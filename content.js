@@ -159,9 +159,11 @@ async function getMe() {
   try {
     const stored = await chrome.storage.local.get("scrapboxMe");
     const cached = stored.scrapboxMe;
+    console.log("[IML] getMe: cached=", JSON.stringify(cached));
     if (cached?.id) {
       // name がIDそのもの・または photo が空の場合はキャッシュを削除して再取得
       if (looksLikeId(cached.name) || !cached.photo) {
+        console.log("[IML] getMe: bad cache detected, clearing and re-fetching");
         chrome.storage.local.remove("scrapboxMe").catch(() => {});
         return fetchAndCacheMe();
       }
@@ -210,6 +212,7 @@ function presenceKey(name) {
 async function pushPresence() {
   if (!FIREBASE_URL || !isWithinProject()) return;
   const me = await getMe();
+  console.log("[IML] pushPresence: me=", JSON.stringify(me), "looksLikeId=", me ? looksLikeId(me.name) : "n/a");
   if (!me || looksLikeId(me.name)) return; // IDのまま書き込まないフェイルセーフ
   fetch(`${FIREBASE_URL}/presence/${presenceKey(me.name)}.json`, {
     method: "PUT",
