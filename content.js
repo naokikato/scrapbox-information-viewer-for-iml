@@ -263,41 +263,44 @@ async function sendNotification(toName) {
   if (!FIREBASE_URL) return;
   const me = await getMe();
   if (!me) return;
-  fetch(`${FIREBASE_URL}/notifications/${presenceKey(toName)}.json`, {
+  fetch(`${FIREBASE_URL}/notifications/${presenceKey(toName)}/${presenceKey(me.name)}.json`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ from: me.name, ts: Math.floor(Date.now() / 1000) })
   }).catch(() => {});
 }
 
-async function fetchMyNotification() {
-  if (!FIREBASE_URL) return null;
+async function fetchMyNotifications() {
+  if (!FIREBASE_URL) return [];
   const me = await getMe();
-  if (!me) return null;
+  if (!me) return [];
   const r = await fetch(`${FIREBASE_URL}/notifications/${presenceKey(me.name)}.json`).catch(() => null);
-  if (!r?.ok) return null;
+  if (!r?.ok) return [];
   const data = await r.json().catch(() => null);
-  if (!data || !data.ts) return null;
+  if (!data || typeof data !== "object") return [];
   const now = Math.floor(Date.now() / 1000);
-  if (now - data.ts >= NOTIFICATION_TTL) return null;
-  return data; // { from, ts }
+  return Object.values(data)
+    .filter(n => n && n.from && n.ts && (now - n.ts) < NOTIFICATION_TTL);
 }
 
 async function checkNotification() {
-  const notif = await fetchMyNotification();
+  const notifs = await fetchMyNotifications();
+  const notifText = notifs.length > 0
+    ? notifs.map(n => n.from).join("、") + "が呼んでいます"
+    : null;
 
   // 再開ボタンの色
   const btn = document.getElementById("scrapbox-cv-reopen");
   if (btn) {
-    btn.style.background = notif ? "#e74c3c" : "#4a90e2";
-    btn.title = notif ? `${notif.from}が呼んでいます` : "IML Viewer を表示";
+    btn.style.background = notifText ? "#e74c3c" : "#4a90e2";
+    btn.title = notifText ?? "IML Viewer を表示";
   }
 
   // パネルヘッダーの色と通知テキスト
   if (_currentShadow && _currentHost?.isConnected) {
     const header = _currentShadow.getElementById("header");
     if (header) {
-      if (notif) {
+      if (notifText) {
         header.style.background = "#e74c3c";
         let span = _currentShadow.getElementById("notif-text");
         if (!span) {
@@ -306,7 +309,7 @@ async function checkNotification() {
           span.style.cssText = "color:#fff;font-size:11px;font-weight:bold;flex:1;text-align:left;padding-left:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
           header.insertBefore(span, header.firstChild);
         }
-        span.textContent = `${notif.from}が呼んでいます`;
+        span.textContent = notifText;
       } else {
         header.style.background = "";
         _currentShadow.getElementById("notif-text")?.remove();
@@ -679,15 +682,23 @@ function initPresenceTab(pane, shadow, host) {
   if (hdr) hdr.insertBefore(timeSpan, hdr.firstChild);
 
   // 通知状態
-  let _sentTo      = null; // 自分が通知を送ったユーザー名
-  let _sentTs      = null; // 送った時刻（ts）
-  let _ackedNotifTs = null; // 受信済みとした通知の ts
+  let _sentTo      = null;      // 自分が通知を送ったユーザー名
+  let _sentTs      = null;      // 送った時刻（ts）
+  let _ackedNotifs = new Map(); // from名 → ts（受信済み通知）
+  let _lastClickTs = 0;         // 通知クリックのデバウンス用
 
-  async function acknowledgeNotification(notifTs) {
-    _ackedNotifTs = notifTs;
+  function tryNotifClick() {
+    const now = Date.now();
+    if (now - _lastClickTs < 1000) return false; // 1秒以内の連打を無視
+    _lastClickTs = now;
+    return true;
+  }
+
+  async function acknowledgeNotification(fromName, notifTs) {
+    _ackedNotifs.set(fromName, notifTs);
     const me = await getMe();
     if (!me) return;
-    fetch(`${FIREBASE_URL}/notifications/${presenceKey(me.name)}.json`, {
+    fetch(`${FIREBASE_URL}/notifications/${presenceKey(me.name)}/${presenceKey(fromName)}.json`, {
       method: "DELETE"
     }).catch(() => {});
   }
@@ -697,7 +708,9 @@ function initPresenceTab(pane, shadow, host) {
     const now = Math.floor(Date.now() / 1000);
     // 送信直後5秒はFirebaseへの書き込みが完了していない可能性があるためtrueとして扱う
     if (now - _sentTs < 5) return true;
-    const r = await fetch(`${FIREBASE_URL}/notifications/${presenceKey(_sentTo)}.json`).catch(() => null);
+    const me = await getMe();
+    if (!me) return false;
+    const r = await fetch(`${FIREBASE_URL}/notifications/${presenceKey(_sentTo)}/${presenceKey(me.name)}.json`).catch(() => null);
     if (!r?.ok) return false;
     const data = await r.json().catch(() => null);
     if (!data || data.ts !== _sentTs) return false;
@@ -727,19 +740,19 @@ function initPresenceTab(pane, shadow, host) {
       return;
     }
 
-    const [users, me, notif, sentActive] = await Promise.all([
+    const [users, me, notifs, sentActive] = await Promise.all([
       fetchPresence(),
       getMe(),
-      fetchMyNotification(),
+      fetchMyNotifications(),
       checkSentActive()
     ]);
 
     // 送信した通知が終了していたらクリア
     if (_sentTo && !sentActive) { _sentTo = null; _sentTs = null; }
 
-    // 受信通知（既に受信済みの ts は無視）
-    const effectiveNotif = (notif && notif.ts !== _ackedNotifTs) ? notif : null;
-    const notifFrom = effectiveNotif?.from ?? null;
+    // 受信通知（既に受信済みのものは除く）
+    const effectiveNotifs = notifs.filter(n => _ackedNotifs.get(n.from) !== n.ts);
+    const callerNames = new Set(effectiveNotifs.map(n => n.from));
 
     // オンラインユーザー描画
     const g = pane.querySelector("#icon-grid");
@@ -753,7 +766,7 @@ function initPresenceTab(pane, shadow, host) {
         wrap.className = "u-wrap";
         const isSelf     = me && u.name === me.name;
         const isSentTo   = u.name === _sentTo;
-        const isCallerOf = u.name === notifFrom;
+        const isCallerOf = callerNames.has(u.name);
 
         // アイコン枠の色
         const borderColor = isSentTo   ? "#4a90e2"  // 青：自分が呼んだ
@@ -773,23 +786,37 @@ function initPresenceTab(pane, shadow, host) {
         if (isCallerOf) {
           wrap.classList.add("notifiable");
           wrap.addEventListener("click", async () => {
-            await acknowledgeNotification(effectiveNotif.ts);
-            // ヘッダーを即座に元に戻す
+            if (!tryNotifClick()) return;
+            const callerNotif = effectiveNotifs.find(n => n.from === u.name);
+            if (!callerNotif) return;
+            await acknowledgeNotification(u.name, callerNotif.ts);
+            // 残りの通知を確認してヘッダーを即座に更新
+            const remaining = effectiveNotifs.filter(n => n.from !== u.name);
             const header = shadow.getElementById("header");
             if (header) {
-              header.style.background = "";
-              shadow.getElementById("notif-text")?.remove();
+              if (remaining.length > 0) {
+                const span = shadow.getElementById("notif-text");
+                if (span) span.textContent = remaining.map(n => n.from).join("、") + "が呼んでいます";
+              } else {
+                header.style.background = "";
+                shadow.getElementById("notif-text")?.remove();
+              }
             }
             const btn = document.getElementById("scrapbox-cv-reopen");
             if (btn) {
-              btn.style.background = "#4a90e2";
-              btn.title = "IML Viewer を表示";
+              if (remaining.length > 0) {
+                btn.title = remaining.map(n => n.from).join("、") + "が呼んでいます";
+              } else {
+                btn.style.background = "#4a90e2";
+                btn.title = "IML Viewer を表示";
+              }
             }
             refresh();
           });
         } else if (!isSelf) {
           wrap.classList.add("notifiable");
           wrap.addEventListener("click", () => {
+            if (!tryNotifClick()) return;
             _sentTo = u.name;
             _sentTs = Math.floor(Date.now() / 1000);
             sendNotification(u.name);
