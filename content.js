@@ -161,26 +161,15 @@ async function getMe() {
 
 async function fetchAndCacheMe() {
   try {
-    // /api/users/me でログイン中ユーザーを取得し、プロジェクトメンバー一覧でID照合
-    const [projRes, meRes] = await Promise.all([
-      fetch(`https://scrapbox.io/api/projects/${AUTO_SHOW_PROJECT}`, { credentials: "include" }),
-      fetch(`https://scrapbox.io/api/users/me`,                      { credentials: "include" })
-    ]);
-    const projData = projRes.ok ? await projRes.json() : null;
-    const meData   = meRes.ok  ? await meRes.json()   : null;
-    const myId = meData?.id;
-    if (!myId || !projData) return _meUser;
-
-    const members = projData.users || projData.members || [];
-    const me = members.find(u => (u.id || u._id) === myId);
-    // メンバー一覧に見つからない場合は書き込まない（IDがそのまま登録されるのを防ぐ）
-    if (!me) return _meUser;
-
-    const name  = me.displayName || me.name  || "";
-    const photo = me.photo       || me.photoURL || "";
-    if (!name) return _meUser;
-
-    _meUser = { id: myId, name, photo };
+    // /api/users/me でログイン中ユーザーを直接取得
+    const meRes = await fetch(`https://scrapbox.io/api/users/me`, { credentials: "include" });
+    if (!meRes.ok) return _meUser;
+    const meData = await meRes.json();
+    const id    = meData.id;
+    const name  = meData.displayName || meData.name || "";
+    const photo = meData.photo || meData.photoURL || "";
+    if (!id || !name || looksLikeId(name)) return _meUser;
+    _meUser = { id, name, photo };
   } catch { }
   return _meUser;
 }
