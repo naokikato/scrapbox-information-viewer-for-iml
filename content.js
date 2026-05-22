@@ -691,11 +691,14 @@ function initPresenceTab(pane, shadow, host) {
 
   async function checkSentActive() {
     if (!_sentTo || !_sentTs) return false;
+    const now = Math.floor(Date.now() / 1000);
+    // 送信直後5秒はFirebaseへの書き込みが完了していない可能性があるためtrueとして扱う
+    if (now - _sentTs < 5) return true;
     const r = await fetch(`${FIREBASE_URL}/notifications/${presenceKey(_sentTo)}.json`).catch(() => null);
     if (!r?.ok) return false;
     const data = await r.json().catch(() => null);
     if (!data || data.ts !== _sentTs) return false;
-    return (Math.floor(Date.now() / 1000) - data.ts) < NOTIFICATION_TTL;
+    return (now - data.ts) < NOTIFICATION_TTL;
   }
 
   function renderLine(text, photoMap) {
@@ -768,6 +771,17 @@ function initPresenceTab(pane, shadow, host) {
           wrap.classList.add("notifiable");
           wrap.addEventListener("click", async () => {
             await acknowledgeNotification(effectiveNotif.ts);
+            // ヘッダーを即座に元に戻す
+            const header = shadow.getElementById("header");
+            if (header) {
+              header.style.background = "";
+              shadow.getElementById("notif-text")?.remove();
+            }
+            const btn = document.getElementById("scrapbox-cv-reopen");
+            if (btn) {
+              btn.style.background = "#4a90e2";
+              btn.title = "IML Viewer を表示";
+            }
             refresh();
           });
         } else if (!isSelf) {
