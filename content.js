@@ -175,36 +175,27 @@ async function getMe() {
 
 async function fetchAndCacheMe() {
   try {
-    // ページ API のレスポンスにはログインユーザー自身の情報（photo 含む）が直接入っている
+    // プロジェクトAPIのメンバー一覧でID照合して名前・photoを取得（v1.1と同じ確実な方式）
     const listPath = `/${AUTO_SHOW_PROJECT}/${encodeURIComponent(STUDENT_LIST_PAGE)}`;
-    const pageRes = await fetch(`https://scrapbox.io/api/pages${listPath}`, { credentials: "include" });
-    if (!pageRes.ok) return _meUser;
-    const pageData = await pageRes.json();
-    const u = pageData?.user;
-    if (!u?.id) return _meUser;
+    const [projRes, pageRes] = await Promise.all([
+      fetch(`https://scrapbox.io/api/projects/${AUTO_SHOW_PROJECT}`, { credentials: "include" }),
+      fetch(`https://scrapbox.io/api/pages${listPath}`,              { credentials: "include" })
+    ]);
+    const projData = projRes.ok ? await projRes.json() : null;
+    const pageData = pageRes.ok ? await pageRes.json() : null;
+    const myId = pageData?.user?.id;
+    if (!myId || !projData) return _meUser;
 
-    let name  = u.displayName || u.name  || "";
-    let photo = u.photo       || u.photoURL || "";
+    const members = projData.users || projData.members || [];
+    const me = members.find(u => (u.id || u._id) === myId);
+    // メンバー一覧に見つからない場合は書き込まない（IDがそのまま登録されるのを防ぐ）
+    if (!me) return _meUser;
 
-    // name がIDそのものの場合は未取得として扱う
-    if (looksLikeId(name)) name = "";
-
-    // name または photo が不足している場合はプロジェクト API でID照合して補完
-    if (!name || !photo) {
-      const projRes = await fetch(`https://scrapbox.io/api/projects/${AUTO_SHOW_PROJECT}`, { credentials: "include" });
-      if (projRes.ok) {
-        const projData = await projRes.json();
-        const members  = projData.users || projData.members || [];
-        const me = members.find(m => (m.id || m._id) === u.id);
-        if (!name)  name  = me?.displayName || me?.name  || "";
-        if (!photo) photo = me?.photo       || me?.photoURL || "";
-      }
-    }
-
-    // 名前が取得できなければ Firebase への書き込みを行わない（IDがそのまま登録されるのを防ぐ）
+    const name  = me.displayName || me.name  || "";
+    const photo = me.photo       || me.photoURL || "";
     if (!name) return _meUser;
 
-    const user = { id: u.id, name, photo };
+    const user = { id: myId, name, photo };
     _meUser = user;
     chrome.storage.local.set({ scrapboxMe: user }).catch(() => {});
   } catch { }
