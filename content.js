@@ -156,15 +156,16 @@ function looksLikeId(name) {
 
 async function getMe() {
   if (_meUser) return _meUser;
-  // chrome.storage.local にキャッシュがあれば即座に使い、バックグラウンドで photo を再確認
   try {
     const stored = await chrome.storage.local.get("scrapboxMe");
-    if (stored.scrapboxMe?.id) {
-      _meUser = stored.scrapboxMe;
-      // name が ID そのもの、または photo が空の場合は即座に再取得
-      if (looksLikeId(_meUser.name) || !_meUser.photo) {
+    const cached = stored.scrapboxMe;
+    if (cached?.id) {
+      // name がIDそのもの・または photo が空の場合は _meUser にセットせず即再取得
+      // （セットしてから再取得すると並行する pushPresence() が古い値を使ってしまう）
+      if (looksLikeId(cached.name) || !cached.photo) {
         return fetchAndCacheMe();
       }
+      _meUser = cached;
       fetchAndCacheMe(); // バックグラウンドで最新情報に更新
       return _meUser;
     }
