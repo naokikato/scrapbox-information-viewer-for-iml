@@ -160,9 +160,9 @@ async function getMe() {
     const stored = await chrome.storage.local.get("scrapboxMe");
     const cached = stored.scrapboxMe;
     if (cached?.id) {
-      // name がIDそのもの・または photo が空の場合は _meUser にセットせず即再取得
-      // （セットしてから再取得すると並行する pushPresence() が古い値を使ってしまう）
+      // name がIDそのもの・または photo が空の場合はキャッシュを削除して再取得
       if (looksLikeId(cached.name) || !cached.photo) {
+        chrome.storage.local.remove("scrapboxMe").catch(() => {});
         return fetchAndCacheMe();
       }
       _meUser = cached;
@@ -210,7 +210,7 @@ function presenceKey(name) {
 async function pushPresence() {
   if (!FIREBASE_URL || !isWithinProject()) return;
   const me = await getMe();
-  if (!me) return;
+  if (!me || looksLikeId(me.name)) return; // IDのまま書き込まないフェイルセーフ
   fetch(`${FIREBASE_URL}/presence/${presenceKey(me.name)}.json`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
