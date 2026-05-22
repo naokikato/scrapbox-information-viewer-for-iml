@@ -15,7 +15,9 @@ const CHAT_PAGE    = "チャット";
 const PRESENCE_TTL     = 90;  // 秒：この秒数以上更新がなければオフライン扱い
 const NOTIFICATION_TTL = 180; // 秒：3分間通知を表示
 
-let userDismissed = false;
+let userDismissed  = false;
+let _currentShadow = null;
+let _currentHost   = null;
 
 // ---- URL 判定 ----
 function isWithinProject() {
@@ -278,6 +280,37 @@ async function fetchMyNotification() {
   return data; // { from, ts }
 }
 
+async function checkNotification() {
+  const notif = await fetchMyNotification();
+
+  // 再開ボタンの色
+  const btn = document.getElementById("scrapbox-cv-reopen");
+  if (btn) {
+    btn.style.background = notif ? "#e74c3c" : "#4a90e2";
+    btn.title = notif ? `${notif.from}が呼んでいます` : "IML Viewer を表示";
+  }
+
+  // パネルヘッダーの色と通知テキスト
+  if (_currentShadow && _currentHost?.isConnected) {
+    const header = _currentShadow.getElementById("header");
+    if (header) {
+      if (notif) {
+        header.style.background = "#e74c3c";
+        let span = _currentShadow.getElementById("notif-text");
+        if (!span) {
+          span = document.createElement("span");
+          span.id = "notif-text";
+          span.style.cssText = "color:#fff;font-size:11px;font-weight:bold;flex:1;text-align:left;padding-left:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+          header.insertBefore(span, header.firstChild);
+        }
+        span.textContent = `${notif.from}が呼んでいます`;
+      } else {
+        header.style.background = "";
+        _currentShadow.getElementById("notif-text")?.remove();
+      }
+    }
+  }
+}
 
 // ---- popup からのメッセージに応答 ----
 chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
@@ -306,6 +339,7 @@ function showReopenButton() {
   `;
   btn.addEventListener("click", () => { userDismissed = false; updateUI(); });
   document.body.appendChild(btn);
+  checkNotification();
 }
 
 function updateUI() {
@@ -982,3 +1016,5 @@ updateUI();
 if (isPersonalDiaryPage()) scrollToToday();
 if (isPresencePage()) scrollToChatBottom();
 startHeartbeat();
+checkNotification();
+setInterval(checkNotification, 30_000);
