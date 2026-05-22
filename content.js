@@ -175,15 +175,14 @@ async function getMe() {
 
 async function fetchAndCacheMe() {
   try {
-    // プロジェクトAPIとページAPIから自分のIDと名前・photoを取得
-    const listPath = `/${AUTO_SHOW_PROJECT}/${encodeURIComponent(STUDENT_LIST_PAGE)}`;
-    const [projRes, pageRes] = await Promise.all([
+    // /api/users/me でログイン中ユーザーを取得し、プロジェクトメンバー一覧でID照合
+    const [projRes, meRes] = await Promise.all([
       fetch(`https://scrapbox.io/api/projects/${AUTO_SHOW_PROJECT}`, { credentials: "include" }),
-      fetch(`https://scrapbox.io/api/pages${listPath}`,              { credentials: "include" })
+      fetch(`https://scrapbox.io/api/users/me`,                      { credentials: "include" })
     ]);
     const projData = projRes.ok ? await projRes.json() : null;
-    const pageData = pageRes.ok ? await pageRes.json() : null;
-    const myId = pageData?.user?.id;
+    const meData   = meRes.ok  ? await meRes.json()   : null;
+    const myId = meData?.id;
     if (!myId || !projData) return _meUser;
 
     const members = projData.users || projData.members || [];
