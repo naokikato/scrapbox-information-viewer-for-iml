@@ -678,12 +678,13 @@ function initPresenceTab(pane, shadow, host) {
     <div id="last-upd"></div>
     <div id="chat-recent"></div>`;
 
-  // 行中の [name.icon] を全てアイコン画像にインライン置換
+  // Scrapbox記法を除去してから [name.icon] をアイコン画像にインライン置換
   function renderLine(text, photoMap) {
+    const cleaned = stripScrapboxNotation(text);
     const re = /\[([^\]]+)\.icon\]/g;
     let html = "", last = 0, m;
-    while ((m = re.exec(text)) !== null) {
-      if (m.index > last) html += `<span class="line-text">${esc(text.slice(last, m.index))}</span>`;
+    while ((m = re.exec(cleaned)) !== null) {
+      if (m.index > last) html += `<span class="line-text">${esc(cleaned.slice(last, m.index))}</span>`;
       const name = m[1];
       const photo = photoMap[name] || "";
       html += photo
@@ -691,7 +692,7 @@ function initPresenceTab(pane, shadow, host) {
         : `<span class="line-initial" title="${esc(name)}">${esc((name || "?")[0])}</span>`;
       last = m.index + m[0].length;
     }
-    if (last < text.length) html += `<span class="line-text">${esc(text.slice(last))}</span>`;
+    if (last < cleaned.length) html += `<span class="line-text">${esc(cleaned.slice(last))}</span>`;
     return `<div class="recent-line">${html}</div>`;
   }
 
@@ -843,6 +844,40 @@ function headerHtml(title) {
 function esc(str) {
   return String(str).replace(/[&<>"']/g, c =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// Scrapbox 記法を除去（[name.icon] は保持）
+function stripScrapboxNotation(text) {
+  let s = text;
+  let i = 0;
+  while (i < s.length) {
+    if (s[i] !== "[") { i++; continue; }
+    // 対応する ] を探しながら最初の空白位置を記録
+    let depth = 1, j = i + 1, wsPos = -1, closePos = -1;
+    while (j < s.length) {
+      if      (s[j] === "[") { depth++; }
+      else if (s[j] === "]") { depth--; if (depth === 0) { closePos = j; break; } }
+      else if (depth === 1 && wsPos === -1 && /\s/.test(s[j])) { wsPos = j; }
+      j++;
+    }
+    if (closePos === -1) { i++; continue; } // 対応する ] がない
+    const inner = s.slice(i + 1, closePos);
+    if (wsPos !== -1) {
+      // [修飾子 本文] → 本文　例: [* bold] → bold, [https://url text] → text
+      s = s.slice(0, closePos) + s.slice(closePos + 1); // ] を削除
+      s = s.slice(0, i)        + s.slice(wsPos + 1);    // [ から空白まで削除
+      // i はそのまま（残った本文を再スキャン）
+    } else if (/^[^\s\[\]]+\.icon$/.test(inner)) {
+      // [name.icon] はアイコン置換のために保持
+      i = closePos + 1;
+    } else {
+      // 空白なし・icon でない → [ と ] だけ除去（中身は残す）
+      s = s.slice(0, closePos) + s.slice(closePos + 1);
+      s = s.slice(0, i)        + s.slice(i + 1);
+      // i はそのまま（中身を再スキャン）
+    }
+  }
+  return s;
 }
 
 // ---- 個人研究日誌ページの最下部スクロール ----
