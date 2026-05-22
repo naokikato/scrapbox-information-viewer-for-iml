@@ -236,8 +236,15 @@ async function fetchPresence() {
   const data = await r.json().catch(() => null);
   if (!data || typeof data !== "object") return [];
   const now = Math.floor(Date.now() / 1000);
-  return Object.values(data)
-    .filter(u => u && u.ts && (now - u.ts) < PRESENCE_TTL)
+  // 名前でグループ化し、最新のエントリのみ残す
+  // （拡張機能と常駐アプリがそれぞれ別キーで書き込んでいる場合の重複排除）
+  const byName = {};
+  for (const u of Object.values(data)) {
+    if (!u || !u.ts || (now - u.ts) >= PRESENCE_TTL) continue;
+    const name = u.name || "";
+    if (!byName[name] || u.ts > byName[name].ts) byName[name] = u;
+  }
+  return Object.values(byName)
     .sort((a, b) => (a.name || "").localeCompare(b.name || "", "ja"));
 }
 
