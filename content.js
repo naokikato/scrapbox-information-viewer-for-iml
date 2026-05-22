@@ -156,20 +156,6 @@ function looksLikeId(name) {
 
 async function getMe() {
   if (_meUser) return _meUser;
-  try {
-    const stored = await chrome.storage.local.get("scrapboxMe");
-    const cached = stored.scrapboxMe;
-    if (cached?.id) {
-      // name がIDそのもの・または photo が空の場合はキャッシュを削除して再取得
-      if (looksLikeId(cached.name) || !cached.photo) {
-        chrome.storage.local.remove("scrapboxMe").catch(() => {});
-        return fetchAndCacheMe();
-      }
-      _meUser = cached;
-      fetchAndCacheMe(); // バックグラウンドで最新情報に更新
-      return _meUser;
-    }
-  } catch { }
   return fetchAndCacheMe();
 }
 
@@ -194,9 +180,7 @@ async function fetchAndCacheMe() {
     const photo = me.photo       || me.photoURL || "";
     if (!name) return _meUser;
 
-    const user = { id: myId, name, photo };
-    _meUser = user;
-    chrome.storage.local.set({ scrapboxMe: user }).catch(() => {});
+    _meUser = { id: myId, name, photo };
   } catch { }
   return _meUser;
 }
