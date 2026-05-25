@@ -21,7 +21,8 @@ let _currentHost   = null;
 
 // ---- URL 判定 ----
 function isWithinProject() {
-  return location.pathname.startsWith(`/${AUTO_SHOW_PROJECT}/`);
+  const p = location.pathname;
+  return p === `/${AUTO_SHOW_PROJECT}` || p.startsWith(`/${AUTO_SHOW_PROJECT}/`);
 }
 function pageTitle() {
   const m = location.pathname.match(/^\/[^/]+\/(.+)$/);
