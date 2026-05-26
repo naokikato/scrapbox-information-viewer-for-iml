@@ -41,12 +41,16 @@ function fetchContributions(pathname = location.pathname) {
   const match = pathname.match(/^\/([^/]+)\/(.+)$/);
   if (!match) return Promise.reject(new Error("Scrapboxのページではありません"));
   const [, project] = match;
+  const listPath = `/${AUTO_SHOW_PROJECT}/${encodeURIComponent(STUDENT_LIST_PAGE)}`;
   return Promise.all([
     fetch(`https://scrapbox.io/api/pages${pathname}`, { credentials: "include" })
       .then(r => { if (!r.ok) throw new Error(`ページAPI: HTTP ${r.status}`); return r.json(); }),
     fetch(`https://scrapbox.io/api/projects/${project}`, { credentials: "include" })
       .then(r => r.ok ? r.json() : null),
-  ]).then(([pageData, projectData]) => {
+    fetch(`https://scrapbox.io/api/pages${listPath}`, { credentials: "include" })
+      .then(r => r.ok ? r.json() : null).catch(() => null),
+  ]).then(([pageData, projectData, listData]) => {
+    const students = listData ? new Set(parseStudentList(listData.lines)) : null;
     const userNames = {};
     for (const u of (projectData?.users || projectData?.members || [])) {
       if (!u) continue;
@@ -62,7 +66,7 @@ function fetchContributions(pathname = location.pathname) {
     const titleOwner = titleOwnerMatch ? titleOwnerMatch[1] : null;
     const contributions = Object.entries(userLineCount)
       .map(([uid, count]) => ({ name: userNames[uid] || uid, count }))
-      .filter(({ name }) => !EXCLUDE_USERS.includes(name) && name !== titleOwner)
+      .filter(({ name }) => !EXCLUDE_USERS.includes(name) && name !== titleOwner && (!students || students.has(name)))
       .sort((a, b) => b.count - a.count);
     return { title: pageData.title, totalLines: pageData.lines.length, contributions };
   });
