@@ -187,10 +187,12 @@ async function pushPresence() {
   if (!FIREBASE_URL || !isWithinProject()) return;
   const me = await getMe();
   if (!me || looksLikeId(me.name)) return; // IDのまま書き込まないフェイルセーフ
+  const memberPhotos = await fetchMemberPhotos();
+  const photo = memberPhotos[me.name] || me.photo;
   fetch(`${FIREBASE_URL}/presence/${presenceKey(me.name)}.json`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: me.name, photo: me.photo, ts: Math.floor(Date.now() / 1000) })
+    body: JSON.stringify({ name: me.name, photo, ts: Math.floor(Date.now() / 1000) })
   }).catch(() => {});
 }
 
