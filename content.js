@@ -57,9 +57,12 @@ function fetchContributions(pathname = location.pathname) {
     for (const line of pageData.lines) {
       if (line.userId) userLineCount[line.userId] = (userLineCount[line.userId] || 0) + 1;
     }
+    // ページタイトルが【ユーザ名】… の形式であればそのユーザも除外
+    const titleOwnerMatch = pageData.title.match(/^【(.+)】/);
+    const titleOwner = titleOwnerMatch ? titleOwnerMatch[1] : null;
     const contributions = Object.entries(userLineCount)
       .map(([uid, count]) => ({ name: userNames[uid] || uid, count }))
-      .filter(({ name }) => !EXCLUDE_USERS.includes(name))
+      .filter(({ name }) => !EXCLUDE_USERS.includes(name) && name !== titleOwner)
       .sort((a, b) => b.count - a.count);
     return { title: pageData.title, totalLines: pageData.lines.length, contributions };
   });
