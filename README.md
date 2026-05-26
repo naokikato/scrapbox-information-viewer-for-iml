@@ -37,7 +37,7 @@ IMLプロジェクトを開くと，ページによって次の情報を表示�
 1. アプリをダウンロード
 - GitHub のリリースページからダウンロードします。
   - https://github.com/naokikato/scrapbox-information-viewer-for-iml/releases/latest
-    - **M1/M2/M3 Mac** の方 → `IMLPresence_mac.zip`
+    - **M1/M2/M3/M4 Mac** の方 → `IMLPresence_mac.zip`
     - **Intel Mac** の方 → `IMLPresence_mac_intel.zip`
 
 2. アプリをインストール
@@ -48,6 +48,20 @@ IMLプロジェクトを開くと，ページによって次の情報を表示�
 - アプリケーションフォルダから `IMLPresence.app` をダブルクリックして起動する
 - 「開発元を確認できません」と表示された場合は、**右クリック → 開く → 開く** を選択する
 - 名前入力ダイアログが表示されるので、**Scrapbox のユーザ名** を入力して OK を押す
+
+4. ユーザ名をしたい場合
+- アプリを終了させてから，次のコマンドを実行し，アプリを再起動
+- rm -rf ~/Library/Application\ Support/IMLPresence
+
+5. アンインストールしたい場合
+- 次のコマンドを実行して自動起動を解除
+  - launchctl unload ~/Library/LaunchAgents/com.iml.presence.plist
+  - rm ~/Library/LaunchAgents/com.iml.presence.plist
+- アプリ本体を削除（コマンドで行いたい場合は次のコマンドを実行）
+  - rm -rf /Applications/IMLPresence.app
+- 設定ファイルを削除
+  - rm -rf ~/Library/Application\ Support/IMLPresence
+
 
 ### Windows の場合
 
