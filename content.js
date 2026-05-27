@@ -198,7 +198,7 @@ async function pushPresence() {
   if (!me || looksLikeId(me.name)) return; // IDのまま書き込まないフェイルセーフ
   // ユーザーページのサムネイル（[username.icon] の実体）を優先して使用
   if (_myPhoto === null) {
-    _myPhoto = me.photo;
+    _myPhoto = ""; // ページ API 失敗時はアイコンなし（OAuth 写真は使わない）
     try {
       const r = await fetch(`https://scrapbox.io/api/pages/${AUTO_SHOW_PROJECT}/${encodeURIComponent(me.name)}`, { credentials: "include" });
       if (r.ok) {
@@ -244,26 +244,6 @@ async function fetchPresence() {
   }
   return Object.values(byName)
     .sort((a, b) => (a.name || "").localeCompare(b.name || "", "ja"));
-}
-
-// ---- メンバー写真キャッシュ ----
-let _memberPhotos = null;
-
-async function fetchMemberPhotos() {
-  if (_memberPhotos) return _memberPhotos;
-  try {
-    const r = await fetch(`https://scrapbox.io/api/projects/${AUTO_SHOW_PROJECT}`, { credentials: "include" });
-    if (!r.ok) return {};
-    const data = await r.json();
-    const members = data.users || data.members || [];
-    _memberPhotos = {};
-    for (const m of members) {
-      const name = m.displayName || m.name;
-      const photo = m.photo || m.photoURL || "";
-      if (name) _memberPhotos[name] = photo;
-    }
-  } catch {}
-  return _memberPhotos || {};
 }
 
 // ---- ページアイコン取得（チャット表示用） ----
@@ -870,21 +850,21 @@ function initPresenceTab(pane, shadow, host) {
     if (t) t.textContent = new Date().toLocaleTimeString("ja-JP");
 
     // チャット最新行
-    Promise.all([fetchChatRecent(1), fetchMemberPhotos()]).then(async ([lines, photoMap]) => {
+    fetchChatRecent(1).then(async lines => {
       const cr = pane.querySelector("#chat-recent");
       if (!cr) return;
       if (lines.length === 0) { cr.innerHTML = ""; return; }
-      // [name.icon] に登場するユーザーのページアイコンを取得してマージ
+      // [name.icon] に登場するユーザーのページアイコンを取得
       const iconNames = new Set();
       for (const l of lines) {
         const re = /\[([^\]]+)\.icon\]/g;
         let m;
         while ((m = re.exec(stripScrapboxNotation(l.text))) !== null) iconNames.add(m[1]);
       }
-      const pageEntries = await Promise.all([...iconNames].map(async n => [n, await fetchPagePhoto(n)]));
-      const mergedMap = { ...photoMap };
-      for (const [n, p] of pageEntries) { if (p) mergedMap[n] = p; }
-      cr.innerHTML = lines.map(l => renderLine(l.text, mergedMap)).join("");
+      const photoMap = Object.fromEntries(
+        await Promise.all([...iconNames].map(async n => [n, await fetchPagePhoto(n)]))
+      );
+      cr.innerHTML = lines.map(l => renderLine(l.text, photoMap)).join("");
     });
   }
 
