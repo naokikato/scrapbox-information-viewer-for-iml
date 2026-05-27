@@ -252,8 +252,11 @@ def main():
     config["photo"] = fetch_photo(config["name"])
 
     paused = [False]          # 手動一時停止フラグ
-    temp_pause_until = [None] # 時間指定停止の終了時刻（datetime or None）
-    prev_active = [None]      # 前回ハートビート時のアクティブ状態（None=未確定）
+    temp_pause_until  = [None] # 時間指定停止の終了時刻（datetime or None）
+    temp_resume_until = [None] # 時間指定再開の終了時刻（datetime or None / _INDEFINITE=無期限）
+    prev_active = [None]       # 前回ハートビート時のアクティブ状態（None=未確定）
+
+    _INDEFINITE = datetime(9999, 12, 31)  # 「一時再開」（無期限）のセンチネル値
 
     def is_temp_paused():
         if temp_pause_until[0] is None:
@@ -263,11 +266,30 @@ def main():
             return False
         return True
 
+    def is_temp_resumed():
+        if temp_resume_until[0] is None:
+            return False
+        if temp_resume_until[0] != _INDEFINITE and datetime.now() >= temp_resume_until[0]:
+            temp_resume_until[0] = None
+            return False
+        return True
+
     def remaining_str():
-        """残り時間を「○時間○分」形式で返す"""
+        """停止残り時間を「○時間○分」形式で返す"""
         if temp_pause_until[0] is None:
             return ""
         delta = temp_pause_until[0] - datetime.now()
+        total = max(0, int(delta.total_seconds()))
+        h, m = divmod(total // 60, 60)
+        if h > 0:
+            return f"{h}時間{m}分"
+        return f"{m}分"
+
+    def remaining_resume_str():
+        """再開残り時間を「○時間○分」形式で返す（無期限の場合は空文字）"""
+        if temp_resume_until[0] is None or temp_resume_until[0] == _INDEFINITE:
+            return ""
+        delta = temp_resume_until[0] - datetime.now()
         total = max(0, int(delta.total_seconds()))
         h, m = divmod(total // 60, 60)
         if h > 0:
@@ -287,6 +309,10 @@ def main():
         elif is_temp_paused():
             icon.icon  = ICON_PAUSED
             icon.title = f"{APP_NAME}（停止中 あと{remaining_str()}）"
+        elif is_temp_resumed():
+            icon.icon  = ICON_ONLINE
+            r = remaining_resume_str()
+            icon.title = f"{APP_NAME}（再開中{' あと'+r if r else ''}）"
         elif is_active_time(config):
             icon.icon  = ICON_ONLINE
             icon.title = APP_NAME
@@ -300,14 +326,19 @@ def main():
             temp = is_temp_paused()
             scheduled = is_active_time(config)
             if paused[0] or temp:
-                # 手動停止 or 時間指定停止中
+                # 手動停止中にスケジュール停止時間に入ったら自動解除
+                if paused[0] and not scheduled:
+                    paused[0] = False
                 if prev_active[0] is True:
                     delete_presence(config)
                 prev_active[0] = False
-                # 時間指定停止が終わった瞬間にアイコンを更新
+                # 時間指定停止が終わった瞬間 / 手動停止自動解除時にアイコンを更新
                 if not temp and prev_active[0] is False:
                     apply_icon_state()
-            elif scheduled:
+            elif scheduled or is_temp_resumed():
+                # スケジュール時間に入ったら一時再開を自動解除
+                if scheduled and is_temp_resumed():
+                    temp_resume_until[0] = None
                 push_presence(config)
                 if prev_active[0] is not True:
                     apply_icon_state()
@@ -317,8 +348,8 @@ def main():
                     delete_presence(config)
                     apply_icon_state()
                 prev_active[0] = False
-            # 時間指定停止中はタイトルの残り時間を毎ハートビート更新
-            if is_temp_paused():
+            # 時間指定停止/再開中はタイトルの残り時間を毎ハートビート更新
+            if is_temp_paused() or is_temp_resumed():
                 apply_icon_state()
             time.sleep(HEARTBEAT_INTERVAL)
 
@@ -328,14 +359,26 @@ def main():
             # 時間指定停止中 → キャンセルして即再開
             temp_pause_until[0] = None
             paused[0] = False
-            if is_active_time(config):
+            if is_active_time(config) or is_temp_resumed():
                 push_presence(config)
                 prev_active[0] = True
             else:
                 prev_active[0] = False
+        elif is_temp_resumed():
+            # 一時再開中 → 再開を終了
+            temp_resume_until[0] = None
+            delete_presence(config)
+            prev_active[0] = False
+        elif not is_active_time(config) and not paused[0]:
+            # スケジュール停止中 → 一時再開（無期限）
+            temp_resume_until[0] = _INDEFINITE
+            push_presence(config)
+            prev_active[0] = True
         else:
+            # 通常のトグル（手動一時停止 / 再開）
             paused[0] = not paused[0]
             if paused[0]:
+                temp_resume_until[0] = None
                 delete_presence(config)
                 prev_active[0] = None
             else:
@@ -348,10 +391,20 @@ def main():
         icon.update_menu()
 
     def on_temp_pause(icon, item, minutes):
-        paused[0] = False  # 手動停止は解除
+        paused[0] = False
         temp_pause_until[0] = datetime.now() + timedelta(minutes=minutes)
+        temp_resume_until[0] = None  # 再開中であればキャンセル
         delete_presence(config)
         prev_active[0] = None
+        apply_icon_state()
+        icon.update_menu()
+
+    def on_temp_resume(icon, item, minutes):
+        paused[0] = False
+        temp_pause_until[0] = None
+        temp_resume_until[0] = datetime.now() + timedelta(minutes=minutes)
+        push_presence(config)
+        prev_active[0] = True
         apply_icon_state()
         icon.update_menu()
 
@@ -359,19 +412,57 @@ def main():
         delete_presence(config)
         icon.stop()
 
+    def _in_schedule_pause():
+        return not is_active_time(config) and not paused[0]
+
     def pause_label(item):
         if paused[0]:
             return "再開"
         if is_temp_paused():
             return f"再開（あと{remaining_str()}）"
+        if is_temp_resumed():
+            r = remaining_resume_str()
+            return f"再開を終了{('（あと'+r+'）') if r else ''}"
+        if _in_schedule_pause():
+            return "一時再開"
         return "一時停止"
+
+    def time_30_label(item):
+        return "30分再開" if _in_schedule_pause() else "30分停止"
+
+    def time_60_label(item):
+        return "1時間再開" if _in_schedule_pause() else "1時間停止"
+
+    def time_180_label(item):
+        return "3時間再開" if _in_schedule_pause() else "3時間停止"
+
+    def on_time_30(icon, item):
+        if _in_schedule_pause():
+            on_temp_resume(icon, item, 30)
+        else:
+            on_temp_pause(icon, item, 30)
+
+    def on_time_60(icon, item):
+        if _in_schedule_pause():
+            on_temp_resume(icon, item, 60)
+        else:
+            on_temp_pause(icon, item, 60)
+
+    def on_time_180(icon, item):
+        if _in_schedule_pause():
+            on_temp_resume(icon, item, 180)
+        else:
+            on_temp_pause(icon, item, 180)
+
+    def time_enabled(item):
+        return not is_temp_resumed() and not paused[0]
 
     menu = pystray.Menu(
         pystray.MenuItem(f"名前: {config['name']}", None, enabled=False),
         pystray.MenuItem(pause_label, on_toggle),
-        pystray.MenuItem("30分停止",  lambda icon, item: on_temp_pause(icon, item, 30)),
-        pystray.MenuItem("1時間停止", lambda icon, item: on_temp_pause(icon, item, 60)),
-        pystray.MenuItem("3時間停止", lambda icon, item: on_temp_pause(icon, item, 180)),
+        pystray.MenuItem(time_30_label,  on_time_30,  enabled=time_enabled),
+        pystray.MenuItem(time_60_label,  on_time_60,  enabled=time_enabled),
+        pystray.MenuItem(time_180_label, on_time_180, enabled=time_enabled),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("終了", on_quit),
     )

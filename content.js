@@ -156,6 +156,7 @@ function fetchHeatmapData(_pathname) {
 // ---- Firebase プレゼンス ----
 let _meUser = null;
 let _meUserFetchedAt = 0;
+let _myPhoto = null; // 自分のページアイコン URL キャッシュ（ページ開放時にリセット）
 const ME_CACHE_TTL = 60 * 60 * 1000; // 1時間
 let _heartbeatTimer = null;
 
@@ -195,14 +196,17 @@ async function pushPresence() {
   const me = await getMe();
   if (!me || looksLikeId(me.name)) return; // IDのまま書き込まないフェイルセーフ
   // ユーザーページのサムネイル（[username.icon] の実体）を優先して使用
-  let photo = me.photo;
-  try {
-    const r = await fetch(`https://scrapbox.io/api/pages/${AUTO_SHOW_PROJECT}/${encodeURIComponent(me.name)}`, { credentials: "include" });
-    if (r.ok) {
-      const data = await r.json();
-      if (data.image) photo = data.image;
-    }
-  } catch {}
+  if (_myPhoto === null) {
+    _myPhoto = me.photo;
+    try {
+      const r = await fetch(`https://scrapbox.io/api/pages/${AUTO_SHOW_PROJECT}/${encodeURIComponent(me.name)}`, { credentials: "include" });
+      if (r.ok) {
+        const data = await r.json();
+        if (data.image) _myPhoto = data.image;
+      }
+    } catch {}
+  }
+  const photo = _myPhoto;
   fetch(`${FIREBASE_URL}/presence/${presenceKey(me.name)}.json`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
