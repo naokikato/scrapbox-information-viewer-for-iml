@@ -82,8 +82,8 @@ def is_active_time(config):
 
 # ---- Scrapbox/Firebase からアイコン URL を取得 ----
 def fetch_photo(name):
-    """Firebase に既存エントリがあればそこから、なければ Scrapbox API から photo を取得"""
-    # 1. Firebase から取得（ブラウザ拡張が先に書き込んでいる場合）
+    """Firebase に既存エントリがあればそこから、なければ Scrapbox ページ API から photo を取得"""
+    # 1. Firebase から取得（ブラウザ拡張が正しい写真を書き込んでいる場合）
     try:
         url = f"{FIREBASE_URL}/presence/{presence_key(name)}.json"
         r = requests.get(url, timeout=10)
@@ -94,18 +94,17 @@ def fetch_photo(name):
     except Exception:
         pass
 
-    # 2. Scrapbox プロジェクト API から取得（公開プロジェクトの場合）
+    # 2. Scrapbox ユーザーページのサムネイル（[name.icon] の実体）
     try:
+        encoded = requests.utils.quote(name, safe='')
         r = requests.get(
-            f"https://scrapbox.io/api/projects/{SCRAPBOX_PROJECT}",
+            f"https://scrapbox.io/api/pages/{SCRAPBOX_PROJECT}/{encoded}",
             timeout=10
         )
         if r.ok:
             data = r.json()
-            members = data.get("users", data.get("members", []))
-            for m in members:
-                if m.get("displayName") == name or m.get("name") == name:
-                    return m.get("photo") or m.get("photoURL") or ""
+            if data.get("image"):
+                return data["image"]
     except Exception:
         pass
 

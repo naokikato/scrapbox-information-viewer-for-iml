@@ -194,8 +194,15 @@ async function pushPresence() {
   if (!FIREBASE_URL || !isWithinProject()) return;
   const me = await getMe();
   if (!me || looksLikeId(me.name)) return; // IDのまま書き込まないフェイルセーフ
-  const memberPhotos = await fetchMemberPhotos();
-  const photo = memberPhotos[me.name] || me.photo;
+  // ユーザーページのサムネイル（[username.icon] の実体）を優先して使用
+  let photo = me.photo;
+  try {
+    const r = await fetch(`https://scrapbox.io/api/pages/${AUTO_SHOW_PROJECT}/${encodeURIComponent(me.name)}`, { credentials: "include" });
+    if (r.ok) {
+      const data = await r.json();
+      if (data.image) photo = data.image;
+    }
+  } catch {}
   fetch(`${FIREBASE_URL}/presence/${presenceKey(me.name)}.json`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
