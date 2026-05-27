@@ -57,8 +57,10 @@ def load_config():
     return None
 
 def save_config(config):
+    # photo は起動時に毎回取得するため保存しない
+    data = {k: v for k, v in config.items() if k != "photo"}
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(config, f, ensure_ascii=False, indent=2)
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
 def ensure_schedule(config):
     """config に schedule がなければデフォルト値を追記して保存"""
@@ -80,21 +82,9 @@ def is_active_time(config):
         return False
     return start <= current < end
 
-# ---- Scrapbox/Firebase からアイコン URL を取得 ----
+# ---- Scrapbox からアイコン URL を取得 ----
 def fetch_photo(name):
-    """Firebase に既存エントリがあればそこから、なければ Scrapbox ページ API から photo を取得"""
-    # 1. Firebase から取得（ブラウザ拡張が正しい写真を書き込んでいる場合）
-    try:
-        url = f"{FIREBASE_URL}/presence/{presence_key(name)}.json"
-        r = requests.get(url, timeout=10)
-        if r.ok:
-            data = r.json()
-            if isinstance(data, dict) and data.get("photo"):
-                return data["photo"]
-    except Exception:
-        pass
-
-    # 2. Scrapbox ユーザーページのサムネイル（[name.icon] の実体）
+    """Scrapbox ユーザーページのサムネイル（[name.icon] の実体）を取得"""
     try:
         encoded = requests.utils.quote(name, safe='')
         r = requests.get(
@@ -107,7 +97,6 @@ def fetch_photo(name):
                 return data["image"]
     except Exception:
         pass
-
     return ""
 
 # ---- 初回セットアップ（名前入力） ----
@@ -131,8 +120,7 @@ def setup_first_run():
 
     root.destroy()
     name = name.strip()
-    photo = fetch_photo(name)
-    config = {"name": name, "photo": photo, "schedule": DEFAULT_SCHEDULE.copy()}
+    config = {"name": name, "schedule": DEFAULT_SCHEDULE.copy()}
     save_config(config)
     return config
 
@@ -251,17 +239,6 @@ else:
 ICON_PAUSED   = make_icon_image("#aaaaaa", "#ffffff")                     # グレー丸・白文字
 ICON_SCHEDULE = make_icon_image("#cccccc", "#888888")                     # 薄グレー丸・灰文字
 
-# ---- バックグラウンドで photo を更新 ----
-def refresh_photo_async(config):
-    """起動後にバックグラウンドで photo URL を最新化"""
-    def _refresh():
-        time.sleep(5)  # 少し待ってから取得
-        photo = fetch_photo(config["name"])
-        if photo and photo != config.get("photo"):
-            config["photo"] = photo
-            save_config(config)
-    threading.Thread(target=_refresh, daemon=True).start()
-
 # ---- メイン ----
 def main():
     config = load_config()
@@ -270,6 +247,9 @@ def main():
         config = setup_first_run()
     else:
         ensure_schedule(config)  # 既存 config に schedule がなければ追記
+
+    # 写真は起動時にのみ取得しメモリで保持（config.json には保存しない）
+    config["photo"] = fetch_photo(config["name"])
 
     paused = [False]          # 手動一時停止フラグ
     temp_pause_until = [None] # 時間指定停止の終了時刻（datetime or None）
@@ -293,9 +273,6 @@ def main():
         if h > 0:
             return f"{h}時間{m}分"
         return f"{m}分"
-
-    # バックグラウンドで photo を最新化
-    refresh_photo_async(config)
 
     icon_ref = [None]  # スレッドから icon を参照するための参照渡し用リスト
 
