@@ -156,7 +156,8 @@ function fetchHeatmapData(_pathname) {
 // ---- Firebase プレゼンス ----
 let _meUser = null;
 let _meUserFetchedAt = 0;
-let _myPhoto = null; // 自分のページアイコン URL キャッシュ（ページ開放時にリセット）
+let _myPhoto    = null; // 自分のページアイコン URL キャッシュ（ページ開放時にリセット）
+let _pagePhotos = {};  // name → Scrapbox ページアイコン URL キャッシュ
 const ME_CACHE_TTL = 60 * 60 * 1000; // 1時間
 let _heartbeatTimer = null;
 
@@ -263,6 +264,20 @@ async function fetchMemberPhotos() {
     }
   } catch {}
   return _memberPhotos || {};
+}
+
+// ---- ページアイコン取得（チャット表示用） ----
+async function fetchPagePhoto(name) {
+  if (_pagePhotos[name] !== undefined) return _pagePhotos[name];
+  _pagePhotos[name] = ""; // 取得中フラグ兼デフォルト値
+  try {
+    const r = await fetch(`https://scrapbox.io/api/pages/${AUTO_SHOW_PROJECT}/${encodeURIComponent(name)}`, { credentials: "include" });
+    if (r.ok) {
+      const data = await r.json();
+      if (data.image) _pagePhotos[name] = data.image;
+    }
+  } catch {}
+  return _pagePhotos[name];
 }
 
 // ---- チャット最新行取得 ----
@@ -855,11 +870,21 @@ function initPresenceTab(pane, shadow, host) {
     if (t) t.textContent = new Date().toLocaleTimeString("ja-JP");
 
     // チャット最新行
-    Promise.all([fetchChatRecent(1), fetchMemberPhotos()]).then(([lines, photoMap]) => {
+    Promise.all([fetchChatRecent(1), fetchMemberPhotos()]).then(async ([lines, photoMap]) => {
       const cr = pane.querySelector("#chat-recent");
       if (!cr) return;
       if (lines.length === 0) { cr.innerHTML = ""; return; }
-      cr.innerHTML = lines.map(l => renderLine(l.text, photoMap)).join("");
+      // [name.icon] に登場するユーザーのページアイコンを取得してマージ
+      const iconNames = new Set();
+      for (const l of lines) {
+        const re = /\[([^\]]+)\.icon\]/g;
+        let m;
+        while ((m = re.exec(stripScrapboxNotation(l.text))) !== null) iconNames.add(m[1]);
+      }
+      const pageEntries = await Promise.all([...iconNames].map(async n => [n, await fetchPagePhoto(n)]));
+      const mergedMap = { ...photoMap };
+      for (const [n, p] of pageEntries) { if (p) mergedMap[n] = p; }
+      cr.innerHTML = lines.map(l => renderLine(l.text, mergedMap)).join("");
     });
   }
 
